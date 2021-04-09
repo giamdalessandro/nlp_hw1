@@ -8,18 +8,6 @@ Source code in `nlp2021-hw1` is an extension of NLP TA's code [here](https://git
 - `requirements.txt`
 
 
-## Assignement
-#### Instructor
-* **Roberto Navigli**
-	* Webpage: http://wwwusers.di.uniroma1.it/~navigli/
-
-#### Teaching Assistants
-* **Cesare Campagnano**
-* **Pere-Lluís Huguet Cabot**
-
-#### Course Info
-* http://naviglinlp.blogspot.com/
-
 ## Requirements
 
 * Ubuntu distribution
