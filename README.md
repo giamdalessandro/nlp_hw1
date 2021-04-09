@@ -1,6 +1,14 @@
 # NLP-2021: First Homework
 This is the first homework of the NLP 2021 course at Sapienza University of Rome.
 
+## Hw-1 Word-in-Context Disambiguation
+Source code in `nlp2021-hw1` is an extension of NLP TA's code [here](https://github.com/SapienzaNLP/nlp2021-hw1). As in the assignement, I only edited the following folders and files:
+- `hw1/stud/`
+- `model/`
+- `requirements.txt`
+
+
+## Assignement
 #### Instructor
 * **Roberto Navigli**
 	* Webpage: http://wwwusers.di.uniroma1.it/~navigli/
