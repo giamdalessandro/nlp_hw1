@@ -3,11 +3,14 @@ from typing import List, Tuple, Dict
 
 from model import Model
 
-
 def build_model(device: str) -> Model:
     # STUDENT: return StudentModel()
     # STUDENT: your model MUST be loaded on the device "device" indicates
-    return RandomBaseline()
+            
+    # debug print
+    print("[OK]: Module working.")
+
+    return RandomBaseline() # StudentModel()
 
 
 class RandomBaseline(Model):
