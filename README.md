@@ -6,18 +6,22 @@ Source code in this repo is an extension of NLP TA's code [here](https://github.
 - `model/`
 - `requirements.txt`
 
+### Extra material
+- **Pre-trained embeddings**
+	- [GloVe embeddings - 6B](http://nlp.stanford.edu/data/glove.6B.zip)
 
-## Requirements
 
+
+## Requirements (assignment)
 * Ubuntu distribution
 	* Either 19.10 or the current LTS are perfectly fine
 	* If you do not have it installed, please use a virtual machine (or install it as your secondary OS). Plenty of tutorials online for this part
 * [conda](https://docs.conda.io/projects/conda/en/latest/index.html), a package and environment management system particularly used for Python in the ML community
 
-## Notes
+### Notes
 Unless otherwise stated, all commands here are expected to be run from the root directory of this project
 
-## Setup Environment
+### Setup Environment
 
 As mentioned in the slides, differently from previous years, this year we will be using Docker to remove any issue pertaining your code runnability. If test.sh runs
 on your machine (and you do not edit any uneditable file), it will run on ours as well; we cannot stress enough this point.
