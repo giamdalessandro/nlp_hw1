@@ -3,7 +3,7 @@ import time
 import jsonlines
 import numpy as np
 
-from tqdm import tqdm
+#from tqdm import tqdm
 from typing import List, Tuple, Any, Dict
 
 """
@@ -31,13 +31,17 @@ def read_dataset(path: str) -> Tuple[List[Dict], List[str]]:
 
     return sentence_pairs, labels
 
-
+#####################################################################
 
 if __name__ == '__main__':
+    print("################## my_stuff test code ################")
     #os.chdir("../../")
+
+    print("[INFO]: Loading data ...")
     data_path = "data/dev.jsonl"
 
     try:
+        print(f"data path: '{data_path}'") 
         sentence_pairs, labels = read_dataset(data_path)
 
     except FileNotFoundError as e:
@@ -50,6 +54,6 @@ if __name__ == '__main__':
         print(e, exc_info=True)
         exit(1)
     
-    print("labels:",len(labels))
-    print("sentence pairse:",len(sentence_pairs))
+    print("labels:        ",len(labels))
+    print("sentence pairs:",len(sentence_pairs))
     print("[INFO]: data loaded successfully.")
