@@ -1,6 +1,9 @@
 # VSCode
 .vscode/
+
+# My stuff
 logs/
+model/pretrained_emb/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
