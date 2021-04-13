@@ -34,30 +34,37 @@ def read_dataset(path: str) -> Tuple[List[Dict], List[str]]:
     return sentence_pairs, labels
 
 #####################################################################
-import torch
 import re
+import collections
+from torch.utils.data import IterableDataset
 
 """
     My classes & functions
 """
-class Word2VecDataset(torch.utils.data.IterableDataset):
-
-    def __init__(self, txt_path, vocab_size, unk_token, window_size):
+class Word2VecDataset(IterableDataset):
+    # TODO
+    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, window_size: int):
         """
         Args:
-          txt_file    (str): Path to the raw-text file.
-          vocab_size  (int): Maximum amount of words that we want to embed.
-          unk_token   (str): How will unknown words represented (e.g. 'UNK').
-          window_size (int): Number of words to consider as context.
+            data_file   : Path to the dataset file.
+            vocab_size  : Maximum amount of words that we want to embed.
+            unk_token   : How will unknown words represented (e.g. 'UNK').
+            window_size : Number of words to consider as context.
         """
-        self.window_size = window_size
+        self.sep_token = sep_token
         # [[w1,s1, w2,s1, ..., w|s1|,s1], [w1,s2, w2,s2, ..., w|s2|,s2], ..., [w1,sn, ..., w|sn|,sn]]
-        self.data_words = self.read_dataset(txt_path)
-        self.build_vocabulary(vocab_size, unk_token)
+        self.window_size = window_size 
+        self.data_json = self.read_dataset(data_path)  # tuple(s_pairs,labels)
+        self.build_vocabulary(vocab_size, unk_token, sep_token)
 
+    # TODO
     def __iter__(self):
-        sentences = self.data_words
-        for sentence in sentences:
+        """TODO
+        Overwrites the __iter__() method of the superclass (torch.utils.data.IterableDataset).
+        """
+        sentence_pairs = self.data_json[0]
+        for spair in sentence_pairs:
+            sentence = self.merge_pair(spair=spair, sep_token=self.sep_token) #RABARBARO
             len_sentence = len(sentence)
 
             for input_idx in range(len_sentence):
@@ -80,12 +87,17 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
 
                             yield output_dict
 
-    def keep_word(self, word):
-        '''Implements negative sampling and returns true if we can keep the occurrence as training instance.'''
-        z = self.frequency[word] / self.tot_occurrences
-        p_keep = np.sqrt(z / 10e-3) + 1
-        p_keep *= 10e-3 / z # higher for less frequent instances
-        return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
+    def merge_pair(self, spair: dict, sep_token: str):
+        """
+        Merge the sentences of a pair into one context, where the two are separated bt the sep_token.
+        # may include this in tokenize line #RABARBARO
+        """
+        s1 = spair["sentence1"]
+        s2 = spair["sentence2"]
+        
+        s1.append(sep_token)
+        s1.extend(s2)
+        return s1
 
     def read_dataset(self, data_path: str):
         """
@@ -99,7 +111,7 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
                 labels.append(obj.pop('label'))
 
                 obj["sentence1"] = self.tokenize_line(obj["sentence1"])
-                obj["sentence1"] = self.tokenize_line(obj["sentence2"])
+                obj["sentence2"] = self.tokenize_line(obj["sentence2"])
                 sentence_pairs.append(obj)
 
         assert len(sentence_pairs) == len(labels)
@@ -111,17 +123,20 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
         """
         return [word.lower() for word in re.split(pattern, line.lower()) if word]
 
-    def build_vocabulary(self, vocab_size, unk_token):
-        """Defines the vocabulary to be used. Builds a mapping (word, index) for
+    # TODO
+    def build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str):
+        """ TODO
+        Defines the vocabulary to be used. Builds a mapping (word, index) for
         each word in the vocabulary.
 
         Args:
-          vocab_size (int): size of the vocabolary
-          unk_token (str): token to associate with unknown words
+            vocab_size (int): size of the vocabolary
+            unk_token (str): token to associate with unknown words
         """
         counter_list = []
         # context is a list of tokens within a single sentence
-        for context in self.data_words:
+        for spair in self.data_json[0]:
+            context = self.merge_pair(spair=spair, sep_token=sep_token)
             counter_list.extend(context)
         counter = collections.Counter(counter_list)
         counter_len = len(counter)
@@ -151,7 +166,8 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
         # data is the text converted to indexes, as list of lists
         data = []
         # for each sentence
-        for sentence in self.data_words:
+        for spair in self.data_json[0]:
+            sentence = self.merge_pair(spair=spair, sep_token=sep_token)
             paragraph = []
             # for each word in the sentence
             for i in sentence:
@@ -163,22 +179,34 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
         # list of lists of indices, where each sentence is a list of indices, ignoring UNK
         self.data_idx = data
 
+    # TODO
+    def keep_word(self, word):
+        '''TODO
+        Implements negative sampling and returns true if we can keep the occurrence as training instance.
+        '''
+        z = self.frequency[word] / self.tot_occurrences
+        p_keep = np.sqrt(z / 10e-3) + 1
+        p_keep *= 10e-3 / z # higher for less frequent instances
+        return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
 
 #####################################################################
+UNK = "UNK"
+SEP = "SEP"
+VOCAB_SIZE = 10000
 
 if __name__ == '__main__':
     print("################## my_stuff test code ################")
     #os.chdir("../../")
 
     print("[INFO]: Loading data ...")
-    data_path = "data/dev.jsonl"
+    dev_data_path = "data/dev.jsonl"
 
     try:
-        print(f"data path: '{data_path}'") 
-        sentence_pairs, labels = read_dataset(data_path)
+        print(f"data path: '{dev_data_path}'") 
+        sentence_pairs, labels = read_dataset(dev_data_path)
 
     except FileNotFoundError as e:
-        print(f'Evaluation crashed because {data_path} does not exist')
+        print(f'Evaluation crashed because {dev_data_path} does not exist')
         exit(1)
 
     except Exception as e:
@@ -191,11 +219,21 @@ if __name__ == '__main__':
     print("sentence pairs:",len(sentence_pairs))
     print("[INFO]: data loaded successfully.")
 
-
+    """
     for spair in sentence_pairs:
         print(f"[INFO]: showing sentence pair -> { spair['id'] } ...")
         print("target:",spair["lemma"])
         print("s1:",spair["sentence1"])
         print("s2:",spair["sentence2"])
 
+        s1 = spair["sentence1"]
+        s2 = spair["sentence2"]
+        
+        s1.append(SEP)
+        s1.extend(s2)
+        print(s1)
+
         break # testing 1 sentence pair
+    """
+
+    dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5)
