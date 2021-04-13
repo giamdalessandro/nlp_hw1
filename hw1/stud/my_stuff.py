@@ -46,10 +46,10 @@ class Word2VecDataset(IterableDataset):
     def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, window_size: int):
         """
         Args:
-            data_file   : Path to the dataset file.
-            vocab_size  : Maximum amount of words that we want to embed.
-            unk_token   : How will unknown words represented (e.g. 'UNK').
-            window_size : Number of words to consider as context.
+            - data_path   : Path to the dataset file;
+            - vocab_size  : Maximum amount of words that we want to embed;
+            - unk_token   : How will unknown words represented (e.g. 'UNK');
+            - window_size : Number of words to consider as context.
         """
         self.sep_token = sep_token
         # [[w1,s1, w2,s1, ..., w|s1|,s1], [w1,s2, w2,s2, ..., w|s2|,s2], ..., [w1,sn, ..., w|sn|,sn]]
@@ -59,7 +59,7 @@ class Word2VecDataset(IterableDataset):
 
     # TODO
     def __iter__(self):
-        """TODO
+        """
         Overwrites the __iter__() method of the superclass (torch.utils.data.IterableDataset).
         """
         sentence_pairs = self.data_json[0]
@@ -89,8 +89,8 @@ class Word2VecDataset(IterableDataset):
 
     def merge_pair(self, spair: dict, sep_token: str):
         """
-        Merge the sentences of a pair into one context, where the two are separated bt the sep_token.
-        # may include this in tokenize line #RABARBARO
+        Merge the sentences of a pair into one context, where the two are separated 
+        by the sep_token. # may include this in tokenize_line #RABARBARO
         """
         s1 = spair["sentence1"]
         s2 = spair["sentence2"]
@@ -98,6 +98,13 @@ class Word2VecDataset(IterableDataset):
         s1.append(sep_token)
         s1.extend(s2)
         return s1
+
+    def tokenize_line(self, line: str, pattern='\W'):
+        """
+        Tokenizes a single line (e.g. "The pen is on the table" -> 
+        ["the, "pen", "is", "on", "the", "table"]).
+        """
+        return [word.lower() for word in re.split(pattern, line.lower()) if word]
 
     def read_dataset(self, data_path: str):
         """
@@ -117,12 +124,6 @@ class Word2VecDataset(IterableDataset):
         assert len(sentence_pairs) == len(labels)
         return sentence_pairs, labels
 
-    def tokenize_line(self, line: str, pattern='\W'):
-        """
-        Tokenizes a single line (e.g. "The pen is on the table" -> ["the, "pen", "is", "on", "the", "table"])
-        """
-        return [word.lower() for word in re.split(pattern, line.lower()) if word]
-
     # TODO
     def build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str):
         """ TODO
@@ -130,9 +131,11 @@ class Word2VecDataset(IterableDataset):
         each word in the vocabulary.
 
         Args:
-            vocab_size (int): size of the vocabolary
-            unk_token (str): token to associate with unknown words
+            - vocab_size: size of the vocabolary;
+            - unk_token : token to associate with unknown words;
+            - sep_token : token to separate sentence pairs.
         """
+        print("[INFO]: building vocabulary ...")
         counter_list = []
         # context is a list of tokens within a single sentence
         for spair in self.data_json[0]:
@@ -179,9 +182,8 @@ class Word2VecDataset(IterableDataset):
         # list of lists of indices, where each sentence is a list of indices, ignoring UNK
         self.data_idx = data
 
-    # TODO
-    def keep_word(self, word):
-        '''TODO
+    def keep_word(self, word: str):
+        '''
         Implements negative sampling and returns true if we can keep the occurrence as training instance.
         '''
         z = self.frequency[word] / self.tot_occurrences
@@ -195,7 +197,7 @@ SEP = "SEP"
 VOCAB_SIZE = 10000
 
 if __name__ == '__main__':
-    print("################## my_stuff test code ################")
+    print("\n################## my_stuff test code ################")
     #os.chdir("../../")
 
     print("[INFO]: Loading data ...")
