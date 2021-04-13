@@ -1,7 +1,7 @@
 # NLP-2021 Hw-1: Word-in-Context Disambiguation
 This is the first homework of the NLP 2021 course at Sapienza University of Rome.
 
-Source code in this repo is an extension of NLP TA's code (see [requirements](Requirements) below). As in the assignement, I only edited the following folders and files:
+Source code in this repo is an extension of NLP TA's code (see [requirements](#requirements) below). As in the assignement, I only edited the following folders and files:
 - `hw1/stud/`
 - `model/`
 - `requirements.txt`

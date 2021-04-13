@@ -1,15 +1,18 @@
 import os
+import re
 import time
 import jsonlines
 import numpy as np
+import collections
 
 #from tqdm import tqdm
+from torch.utils.data import IterableDataset
 from typing import List, Tuple, Any, Dict
 
 """
-    Using the provided functions to load the data, as in evaluate.py:
-        - count(l: List[Any]) -> Dict[Any, int];
-        - read_dataset(path: str) -> Tuple[List[Dict], List[str]]; 
+Using the provided functions to load the data, as in evaluate.py:
+    - count(l: List[Any]) -> Dict[Any, int];
+    - read_dataset(path: str) -> Tuple[List[Dict], List[str]]; 
 """
 def count(l: List[Any]) -> Dict[Any, int]:
     d = {}
@@ -33,13 +36,8 @@ def read_dataset(path: str) -> Tuple[List[Dict], List[str]]:
     assert len(sentence_pairs) == len(labels)
     return sentence_pairs, labels
 
-#####################################################################
-import re
-import collections
-from torch.utils.data import IterableDataset
-
 """
-    My classes & functions
+My classes & functions
 """
 class Word2VecDataset(IterableDataset):
     # TODO
@@ -191,7 +189,8 @@ class Word2VecDataset(IterableDataset):
         p_keep *= 10e-3 / z # higher for less frequent instances
         return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
 
-#####################################################################
+
+######################### Main ########################################
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
