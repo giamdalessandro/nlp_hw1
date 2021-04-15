@@ -10,50 +10,22 @@ from torch.utils.data import IterableDataset
 from typing import List, Tuple, Any, Dict
 
 """
-Using the provided functions to load the data, as in evaluate.py:
-    - count(l: List[Any]) -> Dict[Any, int];
-    - read_dataset(path: str) -> Tuple[List[Dict], List[str]]; 
-"""
-def count(l: List[Any]) -> Dict[Any, int]:
-    d = {}
-    for e in l:
-        d[e] = 1 + d.get(e, 0)
-    return d
-
-def read_dataset(path: str) -> Tuple[List[Dict], List[str]]:
-
-    sentence_pairs = []
-    labels = []
-
-    with jsonlines.open(path) as f:
-        for obj in f:
-            labels.append(obj.pop('label'))
-
-            obj["sentence1"] = [word.lower() for word in re.split("\W", obj["sentence1"].lower()) if word]
-            obj["sentence2"] = [word.lower() for word in re.split("\W", obj["sentence2"].lower()) if word]
-            sentence_pairs.append(obj)
-
-    assert len(sentence_pairs) == len(labels)
-    return sentence_pairs, labels
-
-"""
 My classes & functions
 """
 class Word2VecDataset(IterableDataset):
-    # TODO
+    # TODO: change class name
     def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, window_size: int):
         """
         Args:
             - data_path   : Path to the dataset file;
             - vocab_size  : Maximum amount of words that we want to embed;
-            - unk_token   : How will unknown words represented (e.g. 'UNK');
+            - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
-        self.sep_token = sep_token
-        # [[w1,s1, w2,s1, ..., w|s1|,s1], [w1,s2, w2,s2, ..., w|s2|,s2], ..., [w1,sn, ..., w|sn|,sn]]
-        self.window_size = window_size 
-        self.data_json = self.read_dataset(data_path)  # tuple(s_pairs,labels)
-        self.build_vocabulary(vocab_size, unk_token, sep_token)
+        self.sep_token   = sep_token
+        self.window_size = window_size # [[w1,s1, w2,s1, ..., w|s1|,s1], ..., [w1,sn, ..., w|sn|,sn]] 
+        self.data_json   = self.read_dataset(data_path)  # tuple(s_pairs,labels)
+        self.build_vocabulary(vocab_size, unk_token, sep_token, merge=False)
 
     # TODO
     def __iter__(self):
@@ -62,7 +34,13 @@ class Word2VecDataset(IterableDataset):
         """
         sentence_pairs = self.data_json[0]
         for spair in sentence_pairs:
-            sentence = self.merge_pair(spair=spair, sep_token=self.sep_token) #RABARBARO
+            if merge:  #RABARBARO
+                sentence = self.merge_pair(spair=spair, sep_token=sep_token)
+            #else:
+            #    sentence  = spair["sentence1"]
+            #    sentence2 = spair["sentence2"]
+            #    sentence.extend(sentence2)
+                
             len_sentence = len(sentence)
 
             for input_idx in range(len_sentence):
@@ -84,6 +62,15 @@ class Word2VecDataset(IterableDataset):
                             output_dict = {'targets':target, 'inputs':current_word_id}
 
                             yield output_dict
+
+    def keep_word(self,  word: str):
+        '''
+        Implements negative sampling and returns true if we can keep the occurrence as training instance.
+        '''
+        z = self.frequency[word] / self.tot_occurrences
+        p_keep = np.sqrt(z / 10e-3) + 1
+        p_keep *= 10e-3 / z # higher for less frequent instances
+        return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
 
     def merge_pair(self, spair: dict, sep_token: str):
         """
@@ -108,6 +95,7 @@ class Word2VecDataset(IterableDataset):
         """
         Reads the dataset and converts each sentence in the input file into a list of tokenized words.
         """       
+        print(f"[INFO]: Loading data from '{data_path}'...")
         sentence_pairs = []
         labels = []
 
@@ -120,10 +108,14 @@ class Word2VecDataset(IterableDataset):
                 sentence_pairs.append(obj)
 
         assert len(sentence_pairs) == len(labels)
+
+        print("labels:        ",len(labels))
+        print("sentence pairs:",len(sentence_pairs))
+        print("[INFO]: data loaded successfully.")
         return sentence_pairs, labels
 
     # TODO
-    def build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str):
+    def build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str, merge: bool):
         """ TODO
         Defines the vocabulary to be used. Builds a mapping (word, index) for
         each word in the vocabulary.
@@ -131,23 +123,38 @@ class Word2VecDataset(IterableDataset):
         Args:
             - vocab_size: size of the vocabolary;
             - unk_token : token to associate with unknown words;
-            - sep_token : token to separate sentence pairs.
+            - merge     : Wheter to merge the sentence pairs into one;
+            - sep_token : token to separate sentence pairs (only needed when 
+                'merge' is set True).
         """
-        print("[INFO]: building vocabulary ...")
+        print("\n[INFO]: building vocabulary ...")
         counter_list = []
         # context is a list of tokens within a single sentence
         for spair in self.data_json[0]:
-            context = self.merge_pair(spair=spair, sep_token=sep_token)
-            counter_list.extend(context)
+            if merge:
+                context = self.merge_pair(spair=spair, sep_token=sep_token)
+                counter_list.extend(context)
+
+            else:
+                context1 = spair["sentence1"]
+                context2 = spair["sentence2"]
+                counter_list.extend(context1)
+                counter_list.extend(context2)
+            
         counter = collections.Counter(counter_list)
-        counter_len = len(counter)
-        print("Number of distinct words: {}".format(counter_len))
+        self.distinct_words = len(counter)
+        print(f"Number of distinct words: {len(counter)}")
 
         # consider only the (vocab size -1) most common words to build the vocab
-        dictionary = {key: index for index, (key, _) in enumerate(counter.most_common(vocab_size - 1))}
-        assert unk_token not in dictionary
+        most_common = enumerate(counter.most_common(vocab_size - 1))
+        dictionary = {key: index for index, (key, _) in most_common}
         # all the other words are mapped to UNK
+        assert unk_token not in dictionary
         dictionary[unk_token] = vocab_size - 1
+        if merge:
+            dictionary[unk_token] = vocab_size - 1
+            dictionary[sep_token] = vocab_size
+
         self.word2id = dictionary
 
         # dictionary with (word, frequency) pairs -- including only words that are in the vocabulary
@@ -155,20 +162,26 @@ class Word2VecDataset(IterableDataset):
         self.frequency = dict_counts
         self.tot_occurrences = sum(dict_counts[x] for x in dict_counts)
 
-        print("Total occurrences of words in dictionary: {}".format(self.tot_occurrences))
+        print(f"Total occurrences of words in dictionary: {self.tot_occurrences}")
 
         less_freq_word = min(dict_counts, key=counter.get)
-        print("Less frequent word in dictionary appears {} times ({})".format(dict_counts[less_freq_word],
-                                                                              less_freq_word))
+        print(f"Less frequent word in dictionary appears {dict_counts[less_freq_word]} times ({less_freq_word})")
 
-        # index to word
+        # index to word dictonary
         self.id2word = {value: key for key, value in dictionary.items()}
 
         # data is the text converted to indexes, as list of lists
         data = []
         # for each sentence
         for spair in self.data_json[0]:
-            sentence = self.merge_pair(spair=spair, sep_token=sep_token)
+            #sentence = self.merge_pair(spair=spair, sep_token=sep_token)
+            if merge:  #RABARBARO
+                sentence = self.merge_pair(spair=spair, sep_token=sep_token)
+            else:
+                sentence  = spair["sentence1"]
+                sentence2 = spair["sentence2"]
+                sentence.extend(sentence2)
+
             paragraph = []
             # for each word in the sentence
             for i in sentence:
@@ -180,61 +193,63 @@ class Word2VecDataset(IterableDataset):
         # list of lists of indices, where each sentence is a list of indices, ignoring UNK
         self.data_idx = data
 
-    def keep_word(self, word: str):
-        '''
-        Implements negative sampling and returns true if we can keep the occurrence as training instance.
-        '''
-        z = self.frequency[word] / self.tot_occurrences
-        p_keep = np.sqrt(z / 10e-3) + 1
-        p_keep *= 10e-3 / z # higher for less frequent instances
-        return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
+    def load_pretrained_embedding(self, path: str, num_emb: int):
+        """
+        Load pre-trained word embeddings from 'path' file, having an embedding with 
+        'emb_dim' features.
+
+            - path    : file path were embeddings are stored;
+            - num_emb : number of embeddings to be loaded.
+        """
+        if not os.path.isfile(path):
+            print(f"[INFO]: embedding file not found in: {path} ...")
+            exit(1)
+
+        print(f"\n[INFO]: loading embedding from '{path}' ...")
+        pretrained_dict = {}
+        tot_words = 0
+        with open(path, "r") as f:
+            for row in f.readlines():
+                row_list = row.strip().split(" ")
+                if tot_words == 0:
+                    emb_dim = len(row_list) - 1
+                    #assert len(row_list) - 1 == emb_dim
+
+                pretrained_dict[row_list[0]] = np.array(row_list[1:], dtype=np.float64)
+                tot_words += 1
+
+        print(f"loaded {len(pretrained_dict)} pre-trained embeddings of dim {emb_dim} ...")
+
+        embedding_dict = {}
+        missing = 0
+        for key, _ in self.word2id.items():
+            try: 
+                embedding_dict[key] = pretrained_dict[key]
+
+            except KeyError as e:
+                missing += 1
+
+        print(f"missing embeddings: {missing} ({round(missing/self.distinct_words,6)*100}% of vocabulary)" )
+
+        return embedding_dict
 
 
 ######################### Main ########################################
+PRETRAINED_DIR = "./model/pretrained_emb/"
+DEV_PATH   = "data/dev.jsonl"
+TRAIN_PATH = "data/train.jsonl"
+
 UNK = "UNK"
 SEP = "SEP"
-VOCAB_SIZE = 10000
+VOCAB_SIZE = 30000
 
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
-    #os.chdir("../../")
-
-    print("[INFO]: Loading data ...")
-    dev_data_path = "data/dev.jsonl"
-
-    try:
-        print(f"data path: '{dev_data_path}'") 
-        sentence_pairs, labels = read_dataset(dev_data_path)
-
-    except FileNotFoundError as e:
-        print(f'Evaluation crashed because {dev_data_path} does not exist')
-        exit(1)
-
-    except Exception as e:
-        print(f'Evaluation crashed. Most likely, the file you gave is not in the correct format')
-        print(f'Printing error found')
-        print(e, exc_info=True)
-        exit(1)
     
-    print("labels:        ",len(labels))
-    print("sentence pairs:",len(sentence_pairs))
-    print("[INFO]: data loaded successfully.")
-
-    """
-    for spair in sentence_pairs:
-        print(f"[INFO]: showing sentence pair -> { spair['id'] } ...")
-        print("target:",spair["lemma"])
-        print("s1:",spair["sentence1"])
-        print("s2:",spair["sentence2"])
-
-        s1 = spair["sentence1"]
-        s2 = spair["sentence2"]
-        
-        s1.append(SEP)
-        s1.extend(s2)
-        print(s1)
-
-        break # testing 1 sentence pair
-    """
+    dev_data_path = TRAIN_PATH
+    pretrained_path = os.path.join(PRETRAINED_DIR, "glove.6B", "glove.6B.100d.txt")
 
     dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5)
+    pretrained_emb  = dataset.load_pretrained_embedding(pretrained_path, num_emb=10000)
+
+    #print(pretrained_emb["cat"])
