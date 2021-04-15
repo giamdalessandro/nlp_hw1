@@ -6,13 +6,13 @@ import numpy as np
 import collections
 
 #from tqdm import tqdm
-from torch.utils.data import IterableDataset
+import torch
 from typing import List, Tuple, Any, Dict
 
 """
 My classes & functions
 """
-class Word2VecDataset(IterableDataset):
+class Word2VecDataset(torch.utils.data.IterableDataset):
     # TODO: change class name
     def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, 
                        window_size: int, merge: bool):
@@ -238,18 +238,18 @@ class Word2VecDataset(IterableDataset):
                 embedding_list.append(pretrained_embs[word])
 
             except KeyError as e:
-                if word == self.unk_token or word == self.sep_token:
-                    token_emb = np.random.rand(emb_dim)
-                    vocab_embeddings[word] = token_emb
-                    embedding_list.append(token_emb)
-                else:
+                #if word == self.unk_token or word == self.sep_token:
+                token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
+                vocab_embeddings[word] = token_emb
+                embedding_list.append(token_emb)
+                #else:
                     #print("missing word:", word)
-                    missing += 1
+                missing += 1
 
         embedding_mat = np.array(embedding_list, dtype=np.float64)
         print(f"Total of missing embeddings: {missing} ({round(missing/self.distinct_words,6)*100}% of vocabulary)" )
 
-        return embedding_mat, vocab_embeddings
+        return embedding_mat
 
 
 ######################### Main ########################################
@@ -259,16 +259,21 @@ TRAIN_PATH = "data/train.jsonl"
 
 UNK = "UNK"
 SEP = "SEP"
-VOCAB_SIZE = 30000
+VOCAB_SIZE = 10000
 
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
     
-    dev_data_path = DEV_PATH
+    dev_data_path = TRAIN_PATH
     pretrained_path = os.path.join(PRETRAINED_DIR, "glove.6B", "glove.6B.100d.txt")
 
     dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5, merge=False)
-    pretrained_emb, vocab_emb = dataset.load_pretrained_embedding(pretrained_path)
+    pretrained_emb = dataset.load_pretrained_embedding(pretrained_path)
 
+    # create pytorch embedding module
+    num_embeddings = pretrained_emb.shape[0]
+    embedding_dim  = pretrained_emb.shape[1]
+    embeddings = torch.nn.Embedding(num_embeddings, embedding_dim).from_pretrained(torch.FloatTensor(pretrained_emb))
+    
     print(pretrained_emb.shape)
-    print("Embedding example:", vocab_emb["cat"])
+    #print("Embedding example:", vocab_emb["cat"])
