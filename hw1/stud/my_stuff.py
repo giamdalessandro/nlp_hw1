@@ -14,7 +14,8 @@ My classes & functions
 """
 class Word2VecDataset(IterableDataset):
     # TODO: change class name
-    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, window_size: int):
+    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, 
+                       window_size: int, merge: bool):
         """
         Args:
             - data_path   : Path to the dataset file;
@@ -22,10 +23,11 @@ class Word2VecDataset(IterableDataset):
             - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
+        self.unk_token   = unk_token
         self.sep_token   = sep_token
         self.window_size = window_size # [[w1,s1, w2,s1, ..., w|s1|,s1], ..., [w1,sn, ..., w|sn|,sn]] 
         self.data_json   = self.read_dataset(data_path)  # tuple(s_pairs,labels)
-        self.build_vocabulary(vocab_size, unk_token, sep_token, merge=False)
+        self.build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
 
     # TODO
     def __iter__(self):
@@ -193,20 +195,22 @@ class Word2VecDataset(IterableDataset):
         # list of lists of indices, where each sentence is a list of indices, ignoring UNK
         self.data_idx = data
 
-    def load_pretrained_embedding(self, path: str, num_emb: int):
+    # TODO
+    def load_pretrained_embedding(self, path: str):
         """
-        Load pre-trained word embeddings from 'path' file, having an embedding with 
-        'emb_dim' features.
+        Loads pre-trained word embeddings from 'path' file, and retrieves an 
+        embeddings matrix associating each vocabulary word to its corresponding
+        pre-trained embedding, if any. 
 
-            - path    : file path were embeddings are stored;
-            - num_emb : number of embeddings to be loaded.
+            - path    : file path were embeddings are stored.
         """
         if not os.path.isfile(path):
             print(f"[INFO]: embedding file not found in: {path} ...")
             exit(1)
 
+        # load the pre-trained embeddings from file.
         print(f"\n[INFO]: loading embedding from '{path}' ...")
-        pretrained_dict = {}
+        pretrained_embs = {}
         tot_words = 0
         with open(path, "r") as f:
             for row in f.readlines():
@@ -215,23 +219,37 @@ class Word2VecDataset(IterableDataset):
                     emb_dim = len(row_list) - 1
                     #assert len(row_list) - 1 == emb_dim
 
-                pretrained_dict[row_list[0]] = np.array(row_list[1:], dtype=np.float64)
+                pretrained_embs[row_list[0]] = row_list[1:] 
                 tot_words += 1
 
-        print(f"loaded {len(pretrained_dict)} pre-trained embeddings of dim {emb_dim} ...")
+        print(f"loaded {len(pretrained_embs)} pre-trained embeddings of dim {emb_dim} ...")
 
-        embedding_dict = {}
+        # Build a dictionary mapping vocabulary words to the relative pre-trained embeddings.
+        # Map the word indexes to the corresponding embedding, to create
+        # the actual embedding matrix.
+        vocab_embeddings = {}
+        embedding_list = []
         missing = 0
-        for key, _ in self.word2id.items():
+
+        sorted_w2id = dict(sorted(self.word2id.items(), key=lambda item: item[1]))
+        for word, idx in sorted_w2id.items():
             try: 
-                embedding_dict[key] = pretrained_dict[key]
+                vocab_embeddings[word] = pretrained_embs[word]
+                embedding_list.append(pretrained_embs[word])
 
             except KeyError as e:
-                missing += 1
+                if word == self.unk_token or word == self.sep_token:
+                    token_emb = np.random.rand(emb_dim)
+                    vocab_embeddings[word] = token_emb
+                    embedding_list.append(token_emb)
+                else:
+                    #print("missing word:", word)
+                    missing += 1
 
-        print(f"missing embeddings: {missing} ({round(missing/self.distinct_words,6)*100}% of vocabulary)" )
+        embedding_mat = np.array(embedding_list, dtype=np.float64)
+        print(f"Total of missing embeddings: {missing} ({round(missing/self.distinct_words,6)*100}% of vocabulary)" )
 
-        return embedding_dict
+        return embedding_mat, vocab_embeddings
 
 
 ######################### Main ########################################
@@ -246,10 +264,11 @@ VOCAB_SIZE = 30000
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
     
-    dev_data_path = TRAIN_PATH
+    dev_data_path = DEV_PATH
     pretrained_path = os.path.join(PRETRAINED_DIR, "glove.6B", "glove.6B.100d.txt")
 
-    dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5)
-    pretrained_emb  = dataset.load_pretrained_embedding(pretrained_path, num_emb=10000)
+    dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5, merge=False)
+    pretrained_emb, vocab_emb = dataset.load_pretrained_embedding(pretrained_path)
 
-    #print(pretrained_emb["cat"])
+    print(pretrained_emb.shape)
+    print("Embedding example:", vocab_emb["cat"])
