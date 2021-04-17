@@ -6,16 +6,21 @@ import numpy as np
 import collections
 
 #from tqdm import tqdm
-import torch
 from typing import List, Tuple, Any, Dict
+from torch import Tensor, FloatTensor, relu, softmax
+from torch.nn import Embedding, Module, Linear, BCELoss
+from torch.utils.data import Dataset
 
-"""
-My classes & functions
-"""
-class Word2VecDataset(torch.utils.data.IterableDataset):
-    # TODO: change class name
-    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, 
-                       window_size: int, merge: bool):
+
+###########################################################
+####           My classes & functions                  ####
+###########################################################
+class WordEmbDataset(Dataset):
+    """ TODO override __getItem__()
+    Class to manage the dataset and to properly load pretrained embeddings 
+    (subclass of torch.util.data.Dataset).
+    """
+    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, merge: bool):
         """
         Args:
             - data_path   : Path to the dataset file;
@@ -23,28 +28,11 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
             - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
+        #self.window_size = window_size # [[w1,s1, w2,s1, ..., w|s1|,s1], ..., [w1,sn, ..., w|sn|,sn]] 
         self.unk_token   = unk_token
         self.sep_token   = sep_token
-        self.window_size = window_size # [[w1,s1, w2,s1, ..., w|s1|,s1], ..., [w1,sn, ..., w|sn|,sn]] 
         self.data_json   = self.read_dataset(data_path)  # tuple(s_pairs,labels)
         self.build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
-
-    # TODO
-    def __iter__(self):
-        """
-        Overwrites the __iter__() method of the superclass (torch.utils.data.IterableDataset).
-        """
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info is None:  # single-process data loading, return the full iterator
-            iter_start = self.start
-            iter_end = self.end
-        else:  # in a worker process
-            # split workload
-            per_worker = int(math.ceil((self.end - self.start) / float(worker_info.num_workers)))
-            worker_id = worker_info.id
-            iter_start = self.start + worker_id * per_worker
-            iter_end = min(iter_start + per_worker, self.end)
-        return iter(range(iter_start, iter_end))
 
     def merge_pair(self, spair: dict, sep_token: str):
         """
@@ -129,7 +117,7 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
             dictionary[unk_token] = vocab_size - 1
             dictionary[sep_token] = vocab_size
 
-        self.word2id = dictionary
+        self.word_to_idx = dictionary
 
         # dictionary with (word, frequency) pairs -- including only words that are in the vocabulary
         dict_counts = {x: counter[x] for x in dictionary if x is not unk_token}
@@ -167,64 +155,103 @@ class Word2VecDataset(torch.utils.data.IterableDataset):
         # list of lists of indices, where each sentence is a list of indices, ignoring UNK
         self.data_idx = data
 
-    # TODO
-    def load_pretrained_embedding(self, path: str):
-        """
-        Loads pre-trained word embeddings from 'path' file, and retrieves an 
-        embeddings matrix associating each vocabulary word to its corresponding
-        pre-trained embedding, if any. 
+class FooClassifier(Module):
+    """ TODO
+    Classifier class.
+    """
+    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
+        super().__init__()
+        self.hidden_layer = Linear(input_features, hidden_size)
+        self.output_layer = Linear(hidden_size, output_classes)
+        self.loss_fn = BCELoss()
+        self.global_epoch = 0
 
-            - path    : file path were embeddings are stored.
-        """
-        if not os.path.isfile(path):
-            print(f"[INFO]: embedding file not found in: {path} ...")
-            exit(1)
+    def forward(self, x: Tensor, y: Tensor) -> Dict[str, Tensor]:
+        hidden_output = self.hidden_layer(x)
+        hidden_output = relu(hidden_output)
+        
+        logits = self.output_layer(hidden_output).squeeze(1)
+        probabilities = softmax(logits, dim=-1)
+        result = {'logits': logits, 'probabilities': probabilities}
 
-        # load the pre-trained embeddings from file.
-        print(f"\n[INFO]: loading embedding from '{path}' ...")
-        pretrained_embs = {}
-        tot_words = 0
-        with open(path, "r") as f:
-            for row in f.readlines():
-                row_list = row.strip().split(" ")
-                if tot_words == 0:
-                    emb_dim = len(row_list) - 1
-                    #assert len(row_list) - 1 == emb_dim
+        # compute loss
+        if y is not None:
+            loss = self.loss(logits, y)
+            result['loss'] = loss
+        return result
 
-                pretrained_embs[row_list[0]] = row_list[1:] 
-                tot_words += 1
+    def loss(self, pred, y):
+        return self.loss_fn(pred, y)
 
-        print(f"loaded {len(pretrained_embs)} pre-trained embeddings of dim {emb_dim} ...")
+# TODO
+def load_pretrained_embedding(path: str, word_to_idx: dict):
+    """
+    Loads pre-trained word embeddings from 'path' file, and retrieves an 
+    embeddings matrix associating each vocabulary word to its corresponding
+    pre-trained embedding, if any. 
 
-        # Build a dictionary mapping vocabulary words to the relative pre-trained embeddings.
-        # Map the word indexes to the corresponding embedding, to create
-        # the actual embedding matrix.
-        vocab_embeddings = {}
-        embedding_list = []
-        missing = 0
+        - path    : file path were embeddings are stored.
+    """
+    if not os.path.isfile(path):
+        print(f"[INFO]: embedding file not found in: {path} ...")
+        exit(1)
 
-        sorted_w2id = dict(sorted(self.word2id.items(), key=lambda item: item[1]))
-        for word, idx in sorted_w2id.items():
-            try: 
-                vocab_embeddings[word] = pretrained_embs[word]
-                embedding_list.append(pretrained_embs[word])
+    # load the pre-trained embeddings from file.
+    print(f"\n[INFO]: loading embedding from '{path}' ...")
+    word_to_pretrained = {}
+    tot_words = 0
+    with open(path, "r") as f:
+        for row in f.readlines():
+            row_list = row.strip().split(" ")
+            if tot_words == 0:
+                emb_dim = len(row_list) - 1
+                #assert len(row_list) - 1 == emb_dim
 
-            except KeyError as e:
-                #if word == self.unk_token or word == self.sep_token:
-                token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
-                vocab_embeddings[word] = token_emb
-                embedding_list.append(token_emb)
-                #else:
-                    #print("missing word:", word)
-                missing += 1
+            word_to_pretrained[row_list[0]] = row_list[1:] 
+            tot_words += 1
 
-        embedding_mat = np.array(embedding_list, dtype=np.float64)
-        print(f"Total of missing embeddings: {missing} ({round(missing/self.distinct_words,6)*100}% of vocabulary)" )
+    print(f"loaded {len(word_to_pretrained)} pre-trained embeddings of dim {emb_dim} ...")
 
-        return embedding_mat
+    # Build a dictionary mapping vocabulary words to the relative pre-trained embeddings.
+    # Map the word indexes to the corresponding embedding, to create
+    # the actual embedding matrix.
+    word_to_embedding = {}
+    embedding_list = []
+    missing = 0
+
+    sorted_w2id = dict(sorted(word_to_idx.items(), key=lambda item: item[1]))
+    for word, idx in sorted_w2id.items():
+        try: 
+            word_to_embedding[word] = word_to_pretrained[word]
+            embedding_list.append(word_to_pretrained[word])
+
+        except KeyError as e:
+            #if word is not in GloVe, adds a random tensor as its embedding;
+            # it does so also for both unknown and separator tokens
+            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
+            word_to_embedding[word] = token_emb
+            embedding_list.append(token_emb)
+            #print("missing word:", word)
+            missing += 1
+
+    distinct_words = len(word_to_idx)
+    print(f"Total of missing embeddings: {missing} ({round(missing/distinct_words,6)*100}% of vocabulary)" )
+
+    embedding_mat = np.array(embedding_list, dtype=np.float64)
+    return embedding_mat, word_to_embedding
+
+def embedding_lookUp(pretrained_emb: np.ndarray):
+    num_embeddings = pretrained_emb.shape[0]
+    embedding_dim  = pretrained_emb.shape[1]
+    return Embedding(num_embeddings, embedding_dim).from_pretrained(FloatTensor(pretrained_emb))
+
+def indexify():
 
 
-######################### Main ########################################
+######################### Main test #######################
+#from torch import cuda
+#DEVICE = 'cuda' if cuda.is_available() else 'cpu'
+
 PRETRAINED_DIR = "./model/pretrained_emb/"
 DEV_PATH   = "data/dev.jsonl"
 TRAIN_PATH = "data/train.jsonl"
@@ -236,16 +263,17 @@ VOCAB_SIZE = 10000
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
     
-    dev_data_path = TRAIN_PATH
+    dev_data_path = DEV_PATH
     pretrained_path = os.path.join(PRETRAINED_DIR, "glove.6B", "glove.6B.50d.txt")
 
-    dataset = Word2VecDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, window_size=5, merge=False)
-    pretrained_emb = dataset.load_pretrained_embedding(pretrained_path)
+    dataset = WordEmbDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, merge=False)
+    pretrained_emb, _ = load_pretrained_embedding(pretrained_path, dataset.word_to_idx)
 
     # create pytorch embedding module
     num_embeddings = pretrained_emb.shape[0]
     embedding_dim  = pretrained_emb.shape[1]
-    embeddings = torch.nn.Embedding(num_embeddings, embedding_dim).from_pretrained(torch.FloatTensor(pretrained_emb))
+    embeddings = Embedding(num_embeddings, embedding_dim).from_pretrained(FloatTensor(pretrained_emb))
     
+    print(type(pretrained_emb))
     print(pretrained_emb.shape)
     #print("Embedding example:", vocab_emb["cat"])
