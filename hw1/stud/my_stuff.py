@@ -238,9 +238,10 @@ class WordEmbDataset(Dataset):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
             embs = emb_lookup(LongTensor(paragraph))
             # apply aggregation function
-            aux = dummy_aggreggation(embs)
-            #print(aux)
-            sample = (aux, 1 if label else 0)
+            aux_emb = dummy_aggreggation(embs)
+            aux_label = 1 if label == "True" else 0
+            sample = (aux_emb, aux_label)
+            #print(sample)
             samples.append(sample)
             count += 1
 
@@ -295,7 +296,7 @@ def train(model: Module, optimizer: Optimizer, train_dataloader: DataLoader,
         acc_history.append(acc)
         if verbose or epoch == epochs - 1:
             print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}')
-            print(f'  -- accuracy score: {acc}')
+            print(f'      - accuracy score: {acc}')
     
     return {"loss": loss_history, "accuracy": acc_history}
 
@@ -320,7 +321,6 @@ class FooClassifier(Module):
 
         # compute loss
         if y is not None:
-            #print(y)
             loss = self.loss(probabilities, y.float())
             result['loss'] = loss
         return result
