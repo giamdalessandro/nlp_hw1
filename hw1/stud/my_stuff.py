@@ -7,14 +7,116 @@ import collections
 
 #from tqdm import tqdm
 from typing import List, Tuple, Any, Dict
-from torch import Tensor, FloatTensor, LongTensor, relu, softmax
+
+import torch
+from torch import Tensor, LongTensor
+from torch import relu, softmax
 from torch.nn import Embedding, Module, Linear, BCELoss
-from torch.utils.data import Dataset
+from torch.optim import Optimizer
+from torch.utils.data import Dataset, DataLoader
+
+from sklearn.metrics import accuracy_score
 
 
 ###########################################################
 ####           My classes & functions                  ####
 ###########################################################
+def merge_pair(spair: dict, sep_token: str, separate: bool):
+    """
+    Merge the sentences of a pair into one context, where the two are separated 
+    by the sep_token.
+    """
+    s1, s2 = spair["sentence1"], spair["sentence2"]
+    if separate:
+        s1.append(sep_token)
+    s1.extend(s2)
+    #print(s1)
+    return s1
+
+def load_pretrained_embedding(path: str, word_to_idx: dict):
+    """
+    Loads pre-trained word embeddings from 'path' file, and retrieves an 
+    embeddings matrix associating each vocabulary word to its corresponding
+    pre-trained embedding, if any. 
+
+        - path    : file path were embeddings are stored.
+    """
+    if not os.path.isfile(path):
+        print(f"[INFO]: embedding file not found in: {path} ...")
+        exit(1)
+
+    # load the pre-trained embeddings from file.
+    print(f"\n[INFO]: loading embedding from '{path}' ...")
+    word_to_pretrained = {}
+    tot_words = 0
+    with open(path, "r") as f:
+        for row in f.readlines():
+            row_list = row.strip().split(" ")
+            if tot_words == 0:
+                emb_dim = len(row_list) - 1
+                #assert len(row_list) - 1 == emb_dim
+
+            word_to_pretrained[row_list[0]] = row_list[1:] 
+            tot_words += 1
+
+    print(f"loaded {len(word_to_pretrained)} pre-trained embeddings of dim {emb_dim} ...")
+
+    # Build a dictionary mapping vocabulary words to the relative pre-trained embeddings.
+    # Map the word indexes to the corresponding embedding, to create
+    # the actual embedding matrix.
+    word_to_embedding = {}
+    embedding_list = []
+    missing = 0
+
+    sorted_w2id = dict(sorted(word_to_idx.items(), key=lambda item: item[1]))
+    for word, idx in sorted_w2id.items():
+        try: 
+            word_to_embedding[word] = word_to_pretrained[word]
+            embedding_list.append(word_to_pretrained[word])
+
+        except KeyError as e:
+            #if word is not in GloVe, adds a random tensor as its embedding;
+            # it does so also for both unknown and separator tokens
+            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
+            word_to_embedding[word] = token_emb
+            embedding_list.append(token_emb)
+            #print("missing word:", word)
+            missing += 1
+
+    distinct_words = len(word_to_idx)
+    print(f"Total of missing embeddings: {missing} ({round(missing/distinct_words,6)*100}% of vocabulary)" )
+
+    embedding_mat = np.array(embedding_list, dtype=np.float64)
+    print("Total embeddings:",embedding_mat.shape)
+    return embedding_mat, word_to_embedding
+
+def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
+    """
+    Maps the words of the input sentences pair to the matching vocabulary indexes. 
+    """
+    indexes = []
+    merged = merge_pair(spair, sep_token, False)
+    for word in merged:
+        try:
+            indexes.append(word_to_idx[word])
+        except KeyError as e:
+            indexes.append(word_to_idx[unk_token])
+    
+    return indexes
+
+def embedding_lookUp(pretrained_emb: np.ndarray):
+    """
+    Lookup table that matches a list of word indexes to their respective embedding tensors,
+    creating a pytorch embedding module.
+    """
+    num_embeddings = pretrained_emb.shape[0]
+    embedding_dim  = pretrained_emb.shape[1]
+    return Embedding(num_embeddings, embedding_dim).from_pretrained(Tensor(pretrained_emb))
+
+def dummy_aggreggation(sentence_embeddings):
+    # compute the mean of the e,beddings of a sentence
+    return torch.mean(sentence_embeddings, dim=0).float()
+
 class WordEmbDataset(Dataset):
     """ TODO override __getItem__()
     Class to manage the dataset and to properly load pretrained embeddings 
@@ -28,11 +130,12 @@ class WordEmbDataset(Dataset):
             - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
-        #self.window_size = window_size # [[w1,s1, w2,s1, ..., w|s1|,s1], ..., [w1,sn, ..., w|sn|,sn]] 
         self.unk_token    = unk_token
         self.sep_token    = sep_token
-        self.data_json    = self.__read_dataset(data_path)  # tuple(s_pairs,labels)
+        self.data_json    = self.__read_dataset(data_path)  
+        # Build the vocabolary that will be used fro training and other useful data structures
         self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
+        # Preprocess the dateset and provide the aggregated samples
         self.data_samples = self._preprocess_samples(unk_token, sep_token)
 
     def __tokenize_line(self, line: str, pattern='\W'):
@@ -115,23 +218,33 @@ class WordEmbDataset(Dataset):
 
         # index to word dictonary
         self.id2word = {value: key for key, value in dictionary.items()}
+        return
         
     def _preprocess_samples(self, unk_token: str, sep_token: str):
         """
         Preprocess the data to create data samples. The samples are couples having 
         a sentence pair associated with its label (e.g. <s_pair,label>).
+   
+            - unk_token : token to associate with unknown words;
+            - sep_token : token to separate sentence pairs.
         """
-        # load pre-trained embeddings
+        # load pre-trained embeddings and create embedding module
         pretrained_emb, _ = load_pretrained_embedding(pretrained_path, self.word_to_idx)
-
-        samples = []
         emb_lookup = embedding_lookUp(pretrained_emb)
+        
+        count = 0
+        samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
-            aux = emb_lookup(LongTensor(paragraph))      
-            sample = (aux, label)
+            embs = emb_lookup(LongTensor(paragraph))
+            # apply aggregation function
+            aux = dummy_aggreggation(embs)
+            #print(aux)
+            sample = (aux, 1 if label else 0)
             samples.append(sample)
+            count += 1
 
+        print(f"Loaded {count} samples.")
         return samples
 
     # overrided method
@@ -143,126 +256,77 @@ class WordEmbDataset(Dataset):
         """ Returns the idx-th sample """
         return self.data_samples[idx]
 
-#class FooClassifier(Module):
-#    """ TODO
-#    Classifier class.
-#    """
-#    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
-#        super().__init__()
-#        self.hidden_layer = Linear(input_features, hidden_size)
-#        self.output_layer = Linear(hidden_size, output_classes)
-#        self.loss_fn = BCELoss()
-#        self.global_epoch = 0
-#
-#    def forward(self, x: Tensor, y: Tensor) -> Dict[str, Tensor]:
-#        hidden_output = self.hidden_layer(x)
-#        hidden_output = relu(hidden_output)
-#        
-#        logits = self.output_layer(hidden_output).squeeze(1)
-#        probabilities = softmax(logits, dim=-1)
-#        result = {'logits': logits, 'probabilities': probabilities}
-#
-#        # compute loss
-#        if y is not None:
-#            loss = self.loss(logits, y)
-#            result['loss'] = loss
-#        return result
-#
-#    def loss(self, pred, y):
-#        return self.loss_fn(pred, y)
 
-
-def merge_pair(spair: dict, sep_token: str, separate: bool):
+def train(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
+            epochs: int = 5, verbose: bool = True):
     """
-    Merge the sentences of a pair into one context, where the two are separated 
-    by the sep_token.
+    Defines the training loop with the given classifier module.
     """
-    s1, s2 = spair["sentence1"], spair["sentence2"]
-    if separate:
-        s1.append(sep_token)
-    s1.extend(s2)
-    #print(s1)
-    return s1
+    loss_history = []
+    acc_history  = []
 
-def load_pretrained_embedding(path: str, word_to_idx: dict):
-    """
-    Loads pre-trained word embeddings from 'path' file, and retrieves an 
-    embeddings matrix associating each vocabulary word to its corresponding
-    pre-trained embedding, if any. 
+    for epoch in range(epochs):
+        losses = []
+        y_true = []
+        y_pred = []
 
-        - path    : file path were embeddings are stored.
-    """
-    if not os.path.isfile(path):
-        print(f"[INFO]: embedding file not found in: {path} ...")
-        exit(1)
+        # batches of the training set
+        for x, y in train_dataloader:
+            optimizer.zero_grad()
+            batch_out = model(x, y)
+            loss = batch_out['loss']
+            losses.append(loss)
+            # computes the gradient of the loss
+            loss.backward()
+            # updates parameters based on the gradient information
+            optimizer.step()
 
-    # load the pre-trained embeddings from file.
-    print(f"\n[INFO]: loading embedding from '{path}' ...")
-    word_to_pretrained = {}
-    tot_words = 0
-    with open(path, "r") as f:
-        for row in f.readlines():
-            row_list = row.strip().split(" ")
-            if tot_words == 0:
-                emb_dim = len(row_list) - 1
-                #assert len(row_list) - 1 == emb_dim
+            #print(y)
+            #print([round(i) for i in batch_out["probabilities"].detach().numpy()])
+            # to compute accuracy
+            y_true.extend(y)
+            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
 
-            word_to_pretrained[row_list[0]] = row_list[1:] 
-            tot_words += 1
+        model.global_epoch += 1
+        mean_loss = sum(losses) / len(losses)
+        loss_history.append(mean_loss.item())
 
-    print(f"loaded {len(word_to_pretrained)} pre-trained embeddings of dim {emb_dim} ...")
-
-    # Build a dictionary mapping vocabulary words to the relative pre-trained embeddings.
-    # Map the word indexes to the corresponding embedding, to create
-    # the actual embedding matrix.
-    word_to_embedding = {}
-    embedding_list = []
-    missing = 0
-
-    sorted_w2id = dict(sorted(word_to_idx.items(), key=lambda item: item[1]))
-    for word, idx in sorted_w2id.items():
-        try: 
-            word_to_embedding[word] = word_to_pretrained[word]
-            embedding_list.append(word_to_pretrained[word])
-
-        except KeyError as e:
-            #if word is not in GloVe, adds a random tensor as its embedding;
-            # it does so also for both unknown and separator tokens
-            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
-            word_to_embedding[word] = token_emb
-            embedding_list.append(token_emb)
-            #print("missing word:", word)
-            missing += 1
-
-    distinct_words = len(word_to_idx)
-    print(f"Total of missing embeddings: {missing} ({round(missing/distinct_words,6)*100}% of vocabulary)" )
-
-    embedding_mat = np.array(embedding_list, dtype=np.float64)
-    print("Total embeddings:",embedding_mat.shape)
-    return embedding_mat, word_to_embedding
-
-def embedding_lookUp(pretrained_emb: np.ndarray):
-    """
-    Lookup table that matches a list of word indexes to their respective embedding tensors,
-    creating a pytorch embedding module.
-    """
-    num_embeddings = pretrained_emb.shape[0]
-    embedding_dim  = pretrained_emb.shape[1]
-    return Embedding(num_embeddings, embedding_dim).from_pretrained(FloatTensor(pretrained_emb))
-
-def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
-    """
-    Maps the words of the input sentences pair to the matching vocabulary indexes. 
-    """
-    indexes = []
-    merged = merge_pair(spair, sep_token, False)
-    for word in merged:
-        try:
-            indexes.append(word_to_idx[word])
-        except KeyError as e:
-            indexes.append(word_to_idx[unk_token])
+        acc = accuracy_score(y_true, y_pred)
+        acc_history.append(acc)
+        if verbose or epoch == epochs - 1:
+            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}')
+            print(f'  -- accuracy score: {acc}')
     
-    return indexes
+    return {"loss": loss_history, "accuracy": acc_history}
+
+class FooClassifier(Module):
+    """ TODO
+    Classifier module.
+    """
+    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
+        super().__init__()
+        self.hidden_layer = Linear(input_features, hidden_size)
+        self.output_layer = Linear(hidden_size, output_classes)
+        self.loss_fn = BCELoss()
+        self.global_epoch = 0
+
+    def forward(self, x: Tensor, y: Tensor) -> Dict[str, Tensor]:
+        hidden_output = self.hidden_layer(x)
+        hidden_output = relu(hidden_output)
+        
+        logits = self.output_layer(hidden_output).squeeze(1)
+        probabilities = softmax(logits, dim=-1)
+        result = {'logits': logits, 'probabilities': probabilities}
+
+        # compute loss
+        if y is not None:
+            #print(y)
+            loss = self.loss(probabilities, y.float())
+            result['loss'] = loss
+        return result
+
+    def loss(self, pred, y):
+        return self.loss_fn(pred, y)
 
 
 ######################### Main test #######################
@@ -280,7 +344,23 @@ VOCAB_SIZE = 10000
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
     
-    dev_data_path = DEV_PATH
+    data_path = DEV_PATH
     pretrained_path = os.path.join(PRETRAINED_DIR, "glove.6B", "glove.6B.50d.txt")
 
-    dataset = WordEmbDataset(dev_data_path, VOCAB_SIZE, UNK, SEP, merge=False)
+    dataset = WordEmbDataset(data_path, VOCAB_SIZE, UNK, SEP, merge=False)
+    train_dataloader = DataLoader(dataset, batch_size=32)
+
+    my_model = FooClassifier(input_features=50, hidden_size=128, output_classes=1)
+    optimizer = torch.optim.SGD(
+        my_model.parameters(),
+        lr=0.2,
+        momentum=0.0
+    )
+
+    print("\n[INFO]: starting training ...")
+    history = train(
+        model=my_model,
+        train_dataloader=train_dataloader,
+        optimizer=optimizer,
+        epochs=5
+    )
