@@ -246,6 +246,7 @@ def embedding_lookUp(pretrained_emb: np.ndarray):
     return Embedding(num_embeddings, embedding_dim).from_pretrained(FloatTensor(pretrained_emb))
 
 def indexify():
+    return NotImplementedError
 
 
 ######################### Main test #######################
