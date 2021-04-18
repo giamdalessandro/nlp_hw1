@@ -69,7 +69,6 @@ class FooClassifier(Module):
         probabilities = softmax(logits, dim=-1)
         result = {'logits': logits, 'probabilities': probabilities}
 
-        # compute loss
         if y is not None:
             loss = self.loss(probabilities, y.float())
             result['loss'] = loss
