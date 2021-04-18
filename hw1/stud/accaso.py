@@ -5,6 +5,7 @@ import collections
 import jsonlines
 import numpy as np
 
+import torch
 from torch import Tensor, LongTensor
 from torch.nn import Embedding, Module
 from torch.utils.data import Dataset, DataLoader

@@ -1,5 +1,5 @@
 from torch import Tensor
-from torch import relu, softmax
+from torch import relu, sigmoid
 from torch.nn import Module, Linear, BCELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
@@ -66,7 +66,7 @@ class FooClassifier(Module):
         hidden_output = relu(hidden_output)
         
         logits = self.output_layer(hidden_output).squeeze(1)
-        probabilities = softmax(logits, dim=-1)
+        probabilities = sigmoid(logits)
         result = {'logits': logits, 'probabilities': probabilities}
 
         if y is not None:

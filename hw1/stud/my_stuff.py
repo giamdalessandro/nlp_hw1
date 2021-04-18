@@ -39,5 +39,5 @@ if __name__ == '__main__':
         model=my_model,
         train_dataloader=train_dataloader,
         optimizer=optimizer,
-        epochs=5
+        epochs=50
     )
