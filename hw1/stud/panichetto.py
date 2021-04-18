@@ -1,43 +1,79 @@
-def __iter__(self):
+from torch import Tensor
+from torch import relu, softmax
+from torch.nn import Module, Linear, BCELoss
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader
+
+from sklearn.metrics import accuracy_score
+
+
+def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
+            epochs: int = 5, verbose: bool = True):
     """
-    Overwrites the __iter__() method of the superclass (torch.utils.data.IterableDataset).
+    Defines the training loop with the given classifier module.
     """
-    sentence_pairs = self.data_json[0]
-    for spair in sentence_pairs:
-        if merge:  #RABARBARO
-            sentence = self.merge_pair(spair=spair, sep_token=sep_token)
-        #else:
-        #    sentence  = spair["sentence1"]
-        #    sentence2 = spair["sentence2"]
-        #    sentence.extend(sentence2)
-            
-        len_sentence = len(sentence)
+    loss_history = []
+    acc_history  = []
 
-        for input_idx in range(len_sentence):
-            current_word = sentence[input_idx]
-            # must be a word in the vocabulary
-            if current_word in self.word2id and self.keep_word(current_word):
-                # left and right window indices
-                min_idx = max(0, input_idx - self.window_size)
-                max_idx = min(len_sentence, input_idx + self.window_size)
+    for epoch in range(epochs):
+        losses = []
+        y_true = []
+        y_pred = []
 
-                window_idxs = [x for x in range(min_idx, max_idx) if x != input_idx]
-                for target_idx in window_idxs:
-                    # must be a word in the vocabulary
-                    if sentence[target_idx] in self.word2id:
-                        # index of target word in vocab
-                        target = self.word2id[sentence[target_idx]]
-                        # index of input word
-                        current_word_id = self.word2id[current_word]
-                        output_dict = {'targets':target, 'inputs':current_word_id}
+        # batches of the training set
+        for x, y in train_dataloader:
+            optimizer.zero_grad()
+            batch_out = model(x, y)
+            loss = batch_out['loss']
+            losses.append(loss)
+            # computes the gradient of the loss
+            loss.backward()
+            # updates parameters based on the gradient information
+            optimizer.step()
 
-                        yield output_dict
+            #print(y)
+            #print([round(i) for i in batch_out["probabilities"].detach().numpy()])
+            # to compute accuracy
+            y_true.extend(y)
+            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
 
-def keep_word(self, word: str):
-    '''
-    Implements negative sampling and returns true if we can keep the occurrence as training instance.
-    '''
-    z = self.frequency[word] / self.tot_occurrences
-    p_keep = np.sqrt(z / 10e-3) + 1
-    p_keep *= 10e-3 / z # higher for less frequent instances
-    return np.random.rand() < p_keep # toss a coin and compare it to p_keep to keep the word
+        model.global_epoch += 1
+        mean_loss = sum(losses) / len(losses)
+        loss_history.append(mean_loss.item())
+
+        acc = accuracy_score(y_true, y_pred)
+        acc_history.append(acc)
+        if verbose or epoch == epochs - 1:
+            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}')
+            print(f'      - accuracy score: {acc}')
+    
+    return {"loss": loss_history, "accuracy": acc_history}
+
+
+class FooClassifier(Module):
+    """ TODO
+    Classifier module.
+    """
+    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
+        super().__init__()
+        self.hidden_layer = Linear(input_features, hidden_size)
+        self.output_layer = Linear(hidden_size, output_classes)
+        self.loss_fn = BCELoss()
+        self.global_epoch = 0
+
+    def forward(self, x: Tensor, y: Tensor):
+        hidden_output = self.hidden_layer(x)
+        hidden_output = relu(hidden_output)
+        
+        logits = self.output_layer(hidden_output).squeeze(1)
+        probabilities = softmax(logits, dim=-1)
+        result = {'logits': logits, 'probabilities': probabilities}
+
+        # compute loss
+        if y is not None:
+            loss = self.loss(probabilities, y.float())
+            result['loss'] = loss
+        return result
+
+    def loss(self, pred, y):
+        return self.loss_fn(pred, y)

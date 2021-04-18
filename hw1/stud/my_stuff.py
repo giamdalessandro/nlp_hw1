@@ -10,13 +10,10 @@ from typing import List, Tuple, Any, Dict
 
 import torch
 from torch import Tensor, LongTensor
-from torch import relu, softmax
-from torch.nn import Embedding, Module, Linear, BCELoss
-from torch.optim import Optimizer
+from torch.nn import Embedding, Module
 from torch.utils.data import Dataset, DataLoader
 
-from sklearn.metrics import accuracy_score
-
+from panichetto import FooClassifier, train_loop
 
 ###########################################################
 ####           My classes & functions                  ####
@@ -258,77 +255,6 @@ class WordEmbDataset(Dataset):
         return self.data_samples[idx]
 
 
-def train(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
-            epochs: int = 5, verbose: bool = True):
-    """
-    Defines the training loop with the given classifier module.
-    """
-    loss_history = []
-    acc_history  = []
-
-    for epoch in range(epochs):
-        losses = []
-        y_true = []
-        y_pred = []
-
-        # batches of the training set
-        for x, y in train_dataloader:
-            optimizer.zero_grad()
-            batch_out = model(x, y)
-            loss = batch_out['loss']
-            losses.append(loss)
-            # computes the gradient of the loss
-            loss.backward()
-            # updates parameters based on the gradient information
-            optimizer.step()
-
-            #print(y)
-            #print([round(i) for i in batch_out["probabilities"].detach().numpy()])
-            # to compute accuracy
-            y_true.extend(y)
-            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
-
-        model.global_epoch += 1
-        mean_loss = sum(losses) / len(losses)
-        loss_history.append(mean_loss.item())
-
-        acc = accuracy_score(y_true, y_pred)
-        acc_history.append(acc)
-        if verbose or epoch == epochs - 1:
-            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}')
-            print(f'      - accuracy score: {acc}')
-    
-    return {"loss": loss_history, "accuracy": acc_history}
-
-class FooClassifier(Module):
-    """ TODO
-    Classifier module.
-    """
-    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
-        super().__init__()
-        self.hidden_layer = Linear(input_features, hidden_size)
-        self.output_layer = Linear(hidden_size, output_classes)
-        self.loss_fn = BCELoss()
-        self.global_epoch = 0
-
-    def forward(self, x: Tensor, y: Tensor) -> Dict[str, Tensor]:
-        hidden_output = self.hidden_layer(x)
-        hidden_output = relu(hidden_output)
-        
-        logits = self.output_layer(hidden_output).squeeze(1)
-        probabilities = softmax(logits, dim=-1)
-        result = {'logits': logits, 'probabilities': probabilities}
-
-        # compute loss
-        if y is not None:
-            loss = self.loss(probabilities, y.float())
-            result['loss'] = loss
-        return result
-
-    def loss(self, pred, y):
-        return self.loss_fn(pred, y)
-
-
 ######################### Main test #######################
 #from torch import cuda
 #DEVICE = 'cuda' if cuda.is_available() else 'cpu'
@@ -358,7 +284,7 @@ if __name__ == '__main__':
     )
 
     print("\n[INFO]: starting training ...")
-    history = train(
+    history = train_loop(
         model=my_model,
         train_dataloader=train_dataloader,
         optimizer=optimizer,
