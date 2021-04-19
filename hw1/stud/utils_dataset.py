@@ -108,7 +108,8 @@ def embedding_lookUp(pretrained_emb: np.ndarray):
     return Embedding(num_embeddings, embedding_dim).from_pretrained(Tensor(pretrained_emb))
 
 def dummy_aggreggation(sentence_embeddings):
-    # compute the mean of the e,beddings of a sentence
+    # TODO: too dummy
+    # compute the mean of the embeddings of a sentence
     return torch.mean(sentence_embeddings, dim=0).float()
 
 
@@ -232,6 +233,7 @@ class WordEmbDataset(Dataset):
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
             embs = emb_lookup(LongTensor(paragraph))
+            
             # apply aggregation function
             aux_emb = dummy_aggreggation(embs)
             aux_label = 1 if label == "True" else 0

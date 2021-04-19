@@ -42,8 +42,8 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         acc = accuracy_score(y_true, y_pred)
         acc_history.append(acc)
         if verbose or epoch == epochs - 1:
-            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f} \t - accuracy score: {acc}')
-            print('  -----------------------')
+            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}, \ttrain accuracy: {acc:0.4f}')
+            print('  ------------')
     
     return {"loss": loss_history, "accuracy": acc_history}
 
