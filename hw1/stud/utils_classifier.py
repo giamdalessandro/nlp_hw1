@@ -31,8 +31,6 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
             # updates parameters based on the gradient information
             optimizer.step()
 
-            #print(y)
-            #print([round(i) for i in batch_out["probabilities"].detach().numpy()])
             # to compute accuracy
             y_true.extend(y)
             y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
@@ -44,17 +42,17 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         acc = accuracy_score(y_true, y_pred)
         acc_history.append(acc)
         if verbose or epoch == epochs - 1:
-            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}')
-            print(f'      - accuracy score: {acc}')
+            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f} \t - accuracy score: {acc}')
+            print('  -----------------------')
     
     return {"loss": loss_history, "accuracy": acc_history}
 
 
 class FooClassifier(Module):
     """ TODO
-    Classifier module.
+    This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int, output_classes: int):
+    def __init__(self, input_features: int, hidden_size: int, output_classes: int = 1):
         super().__init__()
         self.hidden_layer = Linear(input_features, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
