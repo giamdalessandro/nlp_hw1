@@ -17,7 +17,7 @@ PRETRAINED_EMB  = "glove.6B"
 PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
 
 
-def merge_pair(spair: dict, sep_token: str, separate: bool):
+def merge_pair(spair: dict, sep_token: str, separate: bool = False):
     """
     Merge the sentences of a pair into one context, where the two are separated 
     by the sep_token.
@@ -26,7 +26,8 @@ def merge_pair(spair: dict, sep_token: str, separate: bool):
     if separate:
         s1.append(sep_token)
     s1.extend(s2)
-    #print(s1)
+    s1.append(spair["lemma"])
+
     return s1
 
 def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
@@ -76,7 +77,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
             token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
             word_to_embedding[word] = token_emb
             embedding_list.append(token_emb)
-            print("missing word:", word)
+            #print("missing word:", word)
             missing += 1
 
     distinct_words = len(word_to_idx)
@@ -97,13 +98,14 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     s2 = False
     merged = merge_pair(spair, sep_token, True)   # may be useless
     for word in merged:
+        if word == sep_token:
+            s2 = True 
+            continue
+
         if not s2:
             try:
                 s1_indexes.append(word_to_idx[word])
-            except KeyError as e:
-                if word == sep_token:
-                    s2 = True 
-                    continue   
+            except KeyError as e:   
                 s1_indexes.append(word_to_idx[unk_token])
         else:
             try:
@@ -111,7 +113,7 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
             except KeyError as e:    
                 s2_indexes.append(word_to_idx[unk_token])
     
-    return s1_indexes, s2_indexes
+    return s1_indexes, s2_indexes, spair["lemma"]
 
 
 class WordEmbDataset(Dataset):
@@ -187,25 +189,26 @@ class WordEmbDataset(Dataset):
         counter_list = []
         for spair in self.data_json[0]:
             # context is a list of tokens within a single sentence
-            context = merge_pair(spair=spair, sep_token=sep_token, separate=merge)
+            context = merge_pair(spair=spair, sep_token=sep_token)
             counter_list.extend(context)
             
         counter = collections.Counter(counter_list)
         self.distinct_words = len(counter)
         print(f"Number of distinct words: {len(counter)}")
 
-        # consider only the (vocab size -1) most common words to build the vocab
-        most_common = enumerate(counter.most_common(vocab_size - 1))
+        # consider only the (vocab size - 1) most common words to build the vocab
+        size_considered = (vocab_size - 1) if not merge else (vocab_size - 2)
+        most_common = enumerate(counter.most_common(size_considered))
         dictionary = {key: index for index, (key, _) in most_common}
 
         assert unk_token not in dictionary
-        dictionary[unk_token] = vocab_size - 1
+        dictionary[unk_token] = size_considered
         if merge:
-            dictionary[sep_token] = vocab_size
+            dictionary[sep_token] = vocab_size - 1
         self.word_to_idx = dictionary
 
         # dictionary with (word, frequency) pairs -- including only words that are in the vocabulary
-        dict_counts = {x: counter[x] for x in dictionary if x is not unk_token}
+        dict_counts = {x: counter[x] for x in dictionary if (x is not unk_token and x is not sep_token)}
         self.frequency = dict_counts
         self.tot_occurrences = sum(dict_counts[x] for x in dict_counts)
         print(f"Total occurrences of words in dictionary: {self.tot_occurrences}")

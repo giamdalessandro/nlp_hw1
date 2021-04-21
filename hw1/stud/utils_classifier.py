@@ -24,11 +24,9 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
             optimizer.zero_grad()
             batch_out = model(x, y)
             loss = batch_out['loss']
-            losses.append(loss)
-            # computes the gradient of the loss
-            loss.backward()
-            # updates parameters based on the gradient information
-            optimizer.step()
+            losses.append(loss)           
+            loss.backward()     # computes the gradient of the loss
+            optimizer.step()    # updates parameters based on the gradient information
 
             # to compute accuracy
             y_true.extend(y)
@@ -42,7 +40,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         acc_history.append(acc)
         if verbose or epoch == epochs - 1:
             print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}, \ttrain accuracy: {acc:0.4f}')
-            print('  ------------')
+            print('    ---------------')
     
     return {"loss": loss_history, "accuracy": acc_history}
 

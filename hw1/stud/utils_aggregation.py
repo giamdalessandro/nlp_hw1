@@ -30,8 +30,6 @@ class EmbAggregation(Module):
 
 
     def forward(self, x: tuple):
-        #print(x[0])
-        #print(x[1])
         #sentence_embs = self.embedding(torch.LongTensor(x))
         s1_emb = self.embedding(LongTensor(x[0]))
         s2_emb = self.embedding(LongTensor(x[1]))
@@ -48,3 +46,6 @@ class EmbAggregation(Module):
         m_1 = torch.mean(s1_emb, dim=0).float()
         m_2 = torch.mean(s2_emb, dim=0).float()
         return torch.cat([m_1,m_2]).float()
+
+    def lemma_aggregation(self, s1_emb, s2_emb, lemma):
+        return
