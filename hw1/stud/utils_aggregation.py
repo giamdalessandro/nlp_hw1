@@ -1,7 +1,8 @@
 import numpy as np
-from torch import Tensor, LongTensor, mean
-from torch.nn import Module, Embedding
+import torch 
 
+from torch import Tensor, LongTensor 
+from torch.nn import Module, Embedding
 
 def embedding_lookUp(pretrained_emb: np.ndarray):
     """
@@ -28,12 +29,22 @@ class EmbAggregation(Module):
         self.embedding = embedding_lookUp(pretrained)
 
 
-    def forward(self, x: list):
-        sentence_embs = self.embedding(LongTensor(x))
-        aggregated = self.dummy_aggreggation(sentence_embs)
+    def forward(self, x: tuple):
+        #print(x[0])
+        #print(x[1])
+        #sentence_embs = self.embedding(torch.LongTensor(x))
+        s1_emb = self.embedding(LongTensor(x[0]))
+        s2_emb = self.embedding(LongTensor(x[1]))
+        #aggregated = self.dummy_aggreggation(sentence_embs)
+        aggregated = self.diff_aggregation(s1_emb, s2_emb)
         return aggregated
 
     def dummy_aggreggation(self, sentence_embeddings):
         # TODO: too dummy
         # compute the mean of the embeddings of a sentence
-        return mean(sentence_embeddings, dim=0).float()
+        return torch.mean(sentence_embeddings, dim=0).float()
+
+    def diff_aggregation(self, s1_emb, s2_emb):
+        m_1 = torch.mean(s1_emb, dim=0).float()
+        m_2 = torch.mean(s2_emb, dim=0).float()
+        return torch.cat([m_1,m_2]).float()

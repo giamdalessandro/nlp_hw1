@@ -76,7 +76,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
             token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
             word_to_embedding[word] = token_emb
             embedding_list.append(token_emb)
-            #print("missing word:", word)
+            print("missing word:", word)
             missing += 1
 
     distinct_words = len(word_to_idx)
@@ -89,17 +89,29 @@ def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
 def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
-    TODO may consider lemmas and target words
+    - TODO: may consider lemmas and target words
+    - TODO: check whether to merge sentences or not!
     """
-    indexes = []
-    merged = merge_pair(spair, sep_token, False)
+    s1_indexes = []
+    s2_indexes = []
+    s2 = False
+    merged = merge_pair(spair, sep_token, True)   # may be useless
     for word in merged:
-        try:
-            indexes.append(word_to_idx[word])
-        except KeyError as e:
-            indexes.append(word_to_idx[unk_token])
+        if not s2:
+            try:
+                s1_indexes.append(word_to_idx[word])
+            except KeyError as e:
+                if word == sep_token:
+                    s2 = True 
+                    continue   
+                s1_indexes.append(word_to_idx[unk_token])
+        else:
+            try:
+                s2_indexes.append(word_to_idx[word])
+            except KeyError as e:    
+                s2_indexes.append(word_to_idx[unk_token])
     
-    return indexes
+    return s1_indexes, s2_indexes
 
 
 class WordEmbDataset(Dataset):

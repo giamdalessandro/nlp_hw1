@@ -25,12 +25,12 @@ BATCH_SIZE = 32
 if __name__ == '__main__':
     print("\n################## my_stuff test code ################")
     
-    data_path = DEV_PATH
+    data_path = TRAIN_PATH
 
     dataset = WordEmbDataset(data_path, VOCAB_SIZE, UNK, SEP, merge=False)
     train_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
-    my_model = FooClassifier(input_features=50, hidden_size=128, output_classes=1)
+    my_model = FooClassifier(input_features=100, hidden_size=128, output_classes=1)
     optimizer = SGD(my_model.parameters(), lr=0.2, momentum=0.0)
 
     print("\n[INFO]: Beginning training ...\n")
