@@ -87,6 +87,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
 def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
+    TODO may consider lemmas and target words
     """
     indexes = []
     merged = merge_pair(spair, sep_token, False)
@@ -97,20 +98,6 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
             indexes.append(word_to_idx[unk_token])
     
     return indexes
-
-def embedding_lookUp(pretrained_emb: np.ndarray):
-    """
-    Lookup table that matches a list of word indexes to their respective embedding tensors,
-    creating a pytorch embedding module.
-    """
-    num_embeddings = pretrained_emb.shape[0]
-    embedding_dim  = pretrained_emb.shape[1]
-    return Embedding(num_embeddings, embedding_dim).from_pretrained(Tensor(pretrained_emb))
-
-def dummy_aggreggation(sentence_embeddings):
-    # TODO: too dummy
-    # compute the mean of the embeddings of a sentence
-    return torch.mean(sentence_embeddings, dim=0).float()
 
 
 class WordEmbDataset(Dataset):
@@ -225,17 +212,16 @@ class WordEmbDataset(Dataset):
             - sep_token : token to separate sentence pairs.
         """
         # load pre-trained embeddings and create embedding module
-        pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
-        emb_lookup = embedding_lookUp(pretrained_emb)
+        #pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
+        #emb_lookup = embedding_lookUp(pretrained_emb)
         
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
-            embs = emb_lookup(LongTensor(paragraph))
-            
-            # apply aggregation function
-            aux_emb = dummy_aggreggation(embs)
+            #embs = emb_lookup(LongTensor(paragraph))
+            ## apply aggregation function
+            aux_emb = paragraph  #dummy_aggreggation(embs)
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
             #print(sample)

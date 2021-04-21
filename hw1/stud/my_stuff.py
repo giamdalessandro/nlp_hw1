@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from utils_classifier import FooClassifier, train_loop
 from utils_dataset import WordEmbDataset, load_pretrained_embedding
-
+from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
 from torch import cuda
@@ -28,6 +28,12 @@ if __name__ == '__main__':
     data_path = DEV_PATH
 
     dataset = WordEmbDataset(data_path, VOCAB_SIZE, UNK, SEP, merge=False)
+
+    pretrained, _ = load_pretrained_embedding(dataset.word_to_idx)
+    e = EmbAggregation(pretrained)
+
+    print(e(dataset.data_samples[0][0]))
+    """
     train_dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
     my_model = FooClassifier(input_features=50, hidden_size=128, output_classes=1)
@@ -39,4 +45,4 @@ if __name__ == '__main__':
         train_dataloader=train_dataloader,
         optimizer=optimizer,
         epochs=NUM_EPOCHS
-    )
+    )"""
