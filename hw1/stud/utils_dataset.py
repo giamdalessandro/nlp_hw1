@@ -10,6 +10,8 @@ from torch import Tensor, LongTensor
 from torch.nn import Embedding, Module
 from torch.utils.data import Dataset, DataLoader
 
+from utils_aggregation import EmbAggregation
+
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
 PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
@@ -113,13 +115,13 @@ class WordEmbDataset(Dataset):
             - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
-        self.unk_token    = unk_token
-        self.sep_token    = sep_token
-        self.data_json    = self.__read_dataset(data_path)  
-        # Build the vocabolary that will be used fro training and other useful data structures
+        self.unk_token = unk_token
+        self.sep_token = sep_token
+        self.data_json = self.__read_dataset(data_path)  
+        # Build the vocabolary that will be used for training, and initialize some useful data structures
         self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
         # Preprocess the dateset and provide the aggregated samples
-        self.data_samples = self._preprocess_samples(unk_token, sep_token)
+        self.data_samples = self.__preprocess_samples(unk_token, sep_token)
 
     def __tokenize_line(self, line: str, pattern='\W'):
         """
@@ -155,12 +157,12 @@ class WordEmbDataset(Dataset):
         """ TODO
         Defines the vocabulary to be used. Builds a mapping (word, index) for
         each word in the vocabulary. It adds the following attributes to the class: 
-            self.distinct_words
-            self.word_to_idx
-            self.frequency
-            self.tot_occurrences 
-            self.id2word
-            self.data_samples
+            self.distinct_words   # number of distinct words
+            self.word_to_idx      # (word, idx) mapping
+            self.frequency        # (word, freq) mapping
+            self.tot_occurrences  # number of total words
+            self.id2word          # (idx, word) mapping
+            self.data_samples     # (spair, label) mapping
 
         Args:
             - vocab_size: size of the vocabolary;
@@ -203,25 +205,24 @@ class WordEmbDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def _preprocess_samples(self, unk_token: str, sep_token: str):
+    def __preprocess_samples(self, unk_token: str, sep_token: str):
         """
         Preprocess the data to create data samples. The samples are couples having 
-        a sentence pair associated with its label (e.g. <s_pair,label>).
+        a sentences pair associated with its groundtruth label (e.g. <s_pair,label>).
    
             - unk_token : token to associate with unknown words;
             - sep_token : token to separate sentence pairs.
         """
         # load pre-trained embeddings and create embedding module
-        #pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
-        #emb_lookup = embedding_lookUp(pretrained_emb)
+        pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
+        emb_to_aggregation = EmbAggregation(pretrained_emb)
         
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
-            #embs = emb_lookup(LongTensor(paragraph))
-            ## apply aggregation function
-            aux_emb = paragraph  #dummy_aggreggation(embs)
+            # apply aggregation function
+            aux_emb = emb_to_aggregation(paragraph)
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
             #print(sample)

@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
 
-
 def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
             epochs: int = 5, verbose: bool = True):
     """

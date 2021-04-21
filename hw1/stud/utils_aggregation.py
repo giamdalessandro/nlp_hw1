@@ -2,7 +2,6 @@ import numpy as np
 from torch import Tensor, LongTensor, mean
 from torch.nn import Module, Embedding
 
-from utils_dataset import load_pretrained_embedding
 
 def embedding_lookUp(pretrained_emb: np.ndarray):
     """
@@ -16,12 +15,16 @@ def embedding_lookUp(pretrained_emb: np.ndarray):
 
 class EmbAggregation(Module):
     """ TODO
-    This module a lookup table module to fetch pretrained embeddings, and different 
-    embedding aggregation functions.
+    This module implemente a lookup table module to fetch pretrained embeddings, 
+    and applies one of the different embedding aggregation functions.
     """
     def __init__(self, pretrained: np.array):
+        """
+        Args:
+            - pretrained: numpy matrix representing the pretrained embeddings.
+        """
         super().__init__()
-        self.training = False
+        self.training  = False
         self.embedding = embedding_lookUp(pretrained)
 
 
