@@ -55,6 +55,7 @@ class FooClassifier(Module):
         self.output_layer = Linear(hidden_size, output_classes)
         self.loss_fn = BCELoss()
         self.global_epoch = 0
+        #self.cuda(device)
 
     def forward(self, x: Tensor, y: Tensor):
         hidden_output = self.hidden_layer(x)

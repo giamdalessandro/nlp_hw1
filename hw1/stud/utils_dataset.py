@@ -247,6 +247,9 @@ class WordEmbDataset(Dataset):
         print(f"Loaded {count} samples.")
         return samples
 
+    def get_sample_dim(self):
+        return self.__getitem__(0)[0].size()
+
     # overrided method
     def __len__(self):
         """ Returns the number of samples in our dataset """

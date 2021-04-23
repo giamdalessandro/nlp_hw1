@@ -34,7 +34,7 @@ class EmbAggregation(Module):
         s1_emb = self.embedding(LongTensor(x[0]))
         s2_emb = self.embedding(LongTensor(x[1]))
         #aggregated = self.dummy_aggreggation(sentence_embs)
-        aggregated = self.diff_aggregation(s1_emb, s2_emb)
+        aggregated = self.concat_aggregation(s1_emb, s2_emb)
         return aggregated
 
     def dummy_aggreggation(self, sentence_embeddings):
@@ -42,10 +42,14 @@ class EmbAggregation(Module):
         # compute the mean of the embeddings of a sentence
         return torch.mean(sentence_embeddings, dim=0).float()
 
-    def diff_aggregation(self, s1_emb, s2_emb):
+    def concat_aggregation(self, s1_emb, s2_emb):
         m_1 = torch.mean(s1_emb, dim=0).float()
         m_2 = torch.mean(s2_emb, dim=0).float()
         return torch.cat([m_1,m_2]).float()
 
-    def lemma_aggregation(self, s1_emb, s2_emb, lemma):
-        return
+    def square_diff_aggregation(self, s1_emb, s2_emb):
+        m_1 = torch.mean(s1_emb, dim=0).float()
+        m_2 = torch.mean(s2_emb, dim=0).float()
+        m_1_sqr = torch.mul(m_1,m_1)
+        m_2_sqr = torch.mul(m_2,m_2)
+        return torch.abs(torch.sub(m_2,m_1)).float()
