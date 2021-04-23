@@ -22,13 +22,13 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 130
+NUM_EPOCHS = 100
 BATCH_SIZE = 32
 
-DEV_VOCAB_SIZE = 5000
-
-
 TRAIN = False
+DEV_VOCAB_SIZE = 8000
+
+
 print("\n################## my_stuff test code ################")
 if TRAIN:    
     train_dataset = WordEmbDataset(TRAIN_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
@@ -38,7 +38,7 @@ if TRAIN:
 
     
     my_model = FooClassifier(input_features=sample_dim, hidden_size=128, output_classes=1)
-    optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.0)
+    optimizer = SGD(my_model.parameters(), lr=0.2, momentum=0.0)
 
     
     print("\n[INFO]: Beginning training ...\n")
@@ -66,9 +66,14 @@ if TRAIN:
     plt.show()
 
 ################### test saved model with dev data
-# create test Dataset instance
-test_dataset = WordEmbDataset(DEV_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
-test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
+else:
+    # create test Dataset instance
+    test_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-test_model = load_saved_model(os.path.join(SAVE_PATH, "train130_glove100d.pt"))
-print("\n[INFO]: Beginning testing ...\n")
+    # load the saved model
+    test_model = load_saved_model(os.path.join(SAVE_PATH, "train180_glove100d.pt"))
+
+    # evaluate the model with the dev data
+    print("\n[INFO]: Beginning testing ...\n")
+    history = evaluate_model(test_model, test_dataloader)

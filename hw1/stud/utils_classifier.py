@@ -56,21 +56,37 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
     return {"loss": loss_history, "accuracy": acc_history}
 
 def evaluate_model(model: Module, test_dataloader: DataLoader):
-    correct_predictions = 0
-    num_predictions = 0
+    y_true = []
+    y_pred = []
+    acc_history = []
+    loss_history = []
 
-    for x, y in dataloader:
-        output = model(x)
-        loss = output["loss"]
-        prediction = round(output["probabilities"])
+    for x, y in test_dataloader:
+        batch_true = []
+        batch_pred = []
+        output = model(x, y)
+        losses = output["loss"]
+        preds = [round(i) for i in output["probabilities"].detach().numpy()]
 
-        # to compute accuracy
-        y_true.append(y)
-        y_pred.append(prediction)
+        # compute batch loss
+        #mean_loss = sum(losses) / len(losses)
+        #loss_history.append(mean_loss)
 
-    acc = accuracy_score(y_true, y_pred)
-    print("Finale dev accuracy:", acc)
-    return {"accuracy", acc}
+        # compute batch accuracy
+        batch_true.extend(y)
+        batch_pred.extend(preds)
+
+        batch_acc = accuracy_score(batch_true, batch_pred)
+        acc_history.append(batch_acc)
+        print("\tbatch val accuracy:", batch_acc)
+
+        # for overall accuracy
+        y_true.extend(y)
+        y_pred.extend([round(i) for i in output["probabilities"].detach().numpy()])
+    
+    final_acc = accuracy_score(y_true, y_pred)
+    print("Final val accuracy:", final_acc)
+    return {"loss": loss_history, "accuracy": acc_history}
 
 
 class FooClassifier(Module):
