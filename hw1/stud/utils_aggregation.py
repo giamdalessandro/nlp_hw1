@@ -24,6 +24,7 @@ class EmbAggregation(Module):
         Args:
             - pretrained: numpy matrix representing the pretrained embeddings.
         """
+        #torch.set_default_tensor_type('torch.cuda.FloatTensor')
         super().__init__()
         self.training  = False
         self.embedding = embedding_lookUp(pretrained)

@@ -33,7 +33,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         # batches of the training set
         for x, y in train_dataloader:
             optimizer.zero_grad()
-            batch_out = model(x, y)
+            batch_out = model(x.cuda(), y.cuda())
             loss = batch_out["loss"]
             losses.append(loss)           
             loss.backward()     # computes the gradient of the loss
@@ -41,7 +41,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
 
             # to compute accuracy
             y_true.extend(y)
-            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
+            y_pred.extend([round(i) for i in batch_out["probabilities"].cpu().detach().numpy()])
 
         model.global_epoch += 1
         mean_loss = sum(losses) / len(losses)
@@ -65,12 +65,11 @@ def evaluate_model(model: Module, test_dataloader: DataLoader):
         batch_true = []
         batch_pred = []
         output = model(x, y)
-        losses = output["loss"]
+        loss = output["loss"]
         preds = [round(i) for i in output["probabilities"].detach().numpy()]
 
         # compute batch loss
-        #mean_loss = sum(losses) / len(losses)
-        #loss_history.append(mean_loss)
+        loss_history.append(loss)
 
         # compute batch accuracy
         batch_true.extend(y)
@@ -93,11 +92,11 @@ class FooClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int = 128, output_classes: int = 1):
+    def __init__(self, input_features: int, hidden_size: int = 64, output_classes: int = 1):
         super().__init__()
-        self.hidden_layer = Linear(input_features, hidden_size)
-        self.output_layer = Linear(hidden_size, output_classes)
-        self.loss_fn = BCELoss()
+        self.hidden_layer = Linear(input_features, hidden_size).cuda()
+        self.output_layer = Linear(hidden_size, output_classes).cuda()
+        self.loss_fn = BCELoss().cuda()
         self.global_epoch = 0
         #self.cuda(device)
 

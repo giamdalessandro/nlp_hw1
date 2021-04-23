@@ -13,7 +13,7 @@ from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
 from torch import cuda
-DEVICE = 'cuda' if cuda.is_available() else 'cpu'
+DEVICE = "cuda:0" if cuda.is_available() else "cpu"
 
 DEV_PATH   = "data/dev.jsonl"
 TRAIN_PATH = "data/train.jsonl"
@@ -22,25 +22,26 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 100
+NUM_EPOCHS = 110
 BATCH_SIZE = 32
 
-TRAIN = False
+TRAIN = True
 DEV_VOCAB_SIZE = 8000
 
 
 print("\n################## my_stuff test code ################")
 if TRAIN:    
+    print("current cuda device:", torch.cuda.get_device_name(torch.cuda.current_device()))
+    #torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
     train_dataset = WordEmbDataset(TRAIN_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
     sample_dim = train_dataset.get_sample_dim()[0]
-    print("Train sample dim:", sample_dim)
+    #print("Train sample dim:", sample_dim)
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
-
     
-    my_model = FooClassifier(input_features=sample_dim, hidden_size=128, output_classes=1)
-    optimizer = SGD(my_model.parameters(), lr=0.2, momentum=0.0)
+    my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
+    optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
 
-    
     print("\n[INFO]: Beginning training ...\n")
     history = train_loop(
         model=my_model,
@@ -72,7 +73,7 @@ else:
     test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
     # load the saved model
-    test_model = load_saved_model(os.path.join(SAVE_PATH, "train180_glove100d.pt"))
+    test_model = load_saved_model(os.path.join(SAVE_PATH, "train110_glove100d.pt"))
 
     # evaluate the model with the dev data
     print("\n[INFO]: Beginning testing ...\n")
