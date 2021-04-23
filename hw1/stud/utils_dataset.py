@@ -14,7 +14,7 @@ from utils_aggregation import EmbAggregation
 
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
-PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
+PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.100d.txt")
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool = False):

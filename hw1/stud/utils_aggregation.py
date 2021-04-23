@@ -28,7 +28,6 @@ class EmbAggregation(Module):
         self.training  = False
         self.embedding = embedding_lookUp(pretrained)
 
-
     def forward(self, x: tuple):
         #sentence_embs = self.embedding(torch.LongTensor(x))
         s1_emb = self.embedding(LongTensor(x[0]))
@@ -37,12 +36,15 @@ class EmbAggregation(Module):
         aggregated = self.concat_aggregation(s1_emb, s2_emb)
         return aggregated
 
+
     def dummy_aggreggation(self, sentence_embeddings):
         # TODO: too dummy
-        # compute the mean of the embeddings of a sentence
+        # compute the mean of the embeddings of the two sentences
         return torch.mean(sentence_embeddings, dim=0).float()
 
     def concat_aggregation(self, s1_emb, s2_emb):
+        # compute the mean of the embeddings of each 
+        # sentence and concatenates them
         m_1 = torch.mean(s1_emb, dim=0).float()
         m_2 = torch.mean(s2_emb, dim=0).float()
         return torch.cat([m_1,m_2]).float()

@@ -1,10 +1,21 @@
-from torch import Tensor
+from torch import Tensor, load
 from torch import relu, sigmoid
 from torch.nn import Module, Linear, BCELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
+
+def load_saved_model(save_path: str, input_dim: int = 200):
+    """
+    Loads a saved and pre-trained model, generated with the FooClassifier class.
+    """
+    print(f"\n[INFO]: loading pre-trained model from '{save_path}'...")
+    model = FooClassifier(input_features=input_dim)
+    model.load_state_dict(load(save_path))
+    model.eval()
+    print(model.state_dict().keys())
+    return model
 
 def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
             epochs: int = 5, verbose: bool = True):
@@ -23,7 +34,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         for x, y in train_dataloader:
             optimizer.zero_grad()
             batch_out = model(x, y)
-            loss = batch_out['loss']
+            loss = batch_out["loss"]
             losses.append(loss)           
             loss.backward()     # computes the gradient of the loss
             optimizer.step()    # updates parameters based on the gradient information
@@ -44,12 +55,29 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
     
     return {"loss": loss_history, "accuracy": acc_history}
 
+def evaluate_model(model: Module, test_dataloader: DataLoader):
+    correct_predictions = 0
+    num_predictions = 0
+
+    for x, y in dataloader:
+        output = model(x)
+        loss = output["loss"]
+        prediction = round(output["probabilities"])
+
+        # to compute accuracy
+        y_true.append(y)
+        y_pred.append(prediction)
+
+    acc = accuracy_score(y_true, y_pred)
+    print("Finale dev accuracy:", acc)
+    return {"accuracy", acc}
+
 
 class FooClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int, output_classes: int = 1):
+    def __init__(self, input_features: int, hidden_size: int = 128, output_classes: int = 1):
         super().__init__()
         self.hidden_layer = Linear(input_features, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
