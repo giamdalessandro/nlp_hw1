@@ -35,7 +35,7 @@ class StudentModel(Model):
     # STUDENT: construct here your model
     # this class should be loading your weights and vocabulary
 
-    def predict(self, sentence_pairs: List[Dict]) -> List[Dict]:
+    def predict(self, sentence_pairs: List[Dict]) -> List[str]:
         # STUDENT: implement here your predict function
         # remember to respect the same order of sentences!
         pass

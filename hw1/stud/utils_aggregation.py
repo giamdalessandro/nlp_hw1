@@ -56,3 +56,8 @@ class EmbAggregation(Module):
         m_1_sqr = torch.mul(m_1,m_1)
         m_2_sqr = torch.mul(m_2,m_2)
         return torch.abs(torch.sub(m_2,m_1)).float()
+
+    def cosine_similarity(v1: Tensor, v2: Tensor):
+        num = torch.sum(v1 * v2)
+        den = torch.linalg.norm(v1) * torch.linalg.norm(v2)
+        return (num / den).item()

@@ -135,7 +135,7 @@ class WordEmbDataset(Dataset):
         # Build the vocabolary that will be used for training, and initialize some useful data structures
         self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
         # Preprocess the dateset and provide the aggregated samples
-        self.data_samples = self.__preprocess_samples(unk_token, sep_token)
+        self.data_samples = self.__preprocess_data(unk_token, sep_token)
 
     def __tokenize_line(self, line: str, pattern='\W'):
         """
@@ -220,10 +220,11 @@ class WordEmbDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def __preprocess_samples(self, unk_token: str, sep_token: str):
+    def __preprocess_data(self, unk_token: str, sep_token: str):
         """
-        Preprocess the data to create data samples. The samples are couples having 
-        a sentences pair associated with its groundtruth label (e.g. <s_pair,label>).
+        Preprocess the data to create data samples suitable for the classifier. 
+        The samples are couples having a sentences pair associated with its 
+        groundtruth label (e.g. <s_pair,label>).
    
             - unk_token : token to associate with unknown words;
             - sep_token : token to separate sentence pairs.
