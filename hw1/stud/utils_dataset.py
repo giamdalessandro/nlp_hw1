@@ -17,7 +17,7 @@ PRETRAINED_EMB  = "glove.6B"
 PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.100d.txt")
 
 
-def merge_pair(spair: dict, sep_token: str, separate: bool = False):
+def merge_pair(spair: dict, sep_token: str, separate: bool=False):
     """
     Merge the sentences of a pair into one context, where the two are separated 
     by the sep_token.
@@ -30,7 +30,7 @@ def merge_pair(spair: dict, sep_token: str, separate: bool = False):
 
     return s1
 
-def load_pretrained_embedding(word_to_idx: dict, path: str = PRETRAINED_FILE):
+def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     """
     Loads pre-trained word embeddings from 'path' file, and retrieves an 
     embeddings matrix associating each vocabulary word to its corresponding
@@ -247,8 +247,9 @@ class WordEmbDataset(Dataset):
         print(f"Loaded {count} samples.")
         return samples
 
-    def get_sample_dim(self):
-        return self.__getitem__(0)[0].size()
+    def get_sample_dim(self, idx: int=0):
+        """ Returns the idx-th sample pair dimensions, where a sample is a tuple (pair, label)"""
+        return self.__getitem__(idx)[0].size()
 
     # overrided method
     def __len__(self):

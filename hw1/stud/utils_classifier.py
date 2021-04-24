@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
 
-def load_saved_model(save_path: str, input_dim: int = 200):
+def load_saved_model(save_path: str, input_dim: int=200):
     """
     Loads a saved and pre-trained model, generated with the FooClassifier class.
     """
@@ -33,7 +33,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
         # batches of the training set
         for x, y in train_dataloader:
             optimizer.zero_grad()
-            batch_out = model(x.cuda(), y.cuda())
+            batch_out = model(x, y)
             loss = batch_out["loss"]
             losses.append(loss)           
             loss.backward()     # computes the gradient of the loss
@@ -41,7 +41,7 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
 
             # to compute accuracy
             y_true.extend(y)
-            y_pred.extend([round(i) for i in batch_out["probabilities"].cpu().detach().numpy()])
+            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
 
         model.global_epoch += 1
         mean_loss = sum(losses) / len(losses)
@@ -92,11 +92,11 @@ class FooClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int = 64, output_classes: int = 1):
+    def __init__(self, input_features: int, hidden_size: int=64, output_classes: int=1):
         super().__init__()
-        self.hidden_layer = Linear(input_features, hidden_size).cuda()
-        self.output_layer = Linear(hidden_size, output_classes).cuda()
-        self.loss_fn = BCELoss().cuda()
+        self.hidden_layer = Linear(input_features, hidden_size)
+        self.output_layer = Linear(hidden_size, output_classes)
+        self.loss_fn = BCELoss()
         self.global_epoch = 0
         #self.cuda(device)
 
