@@ -74,7 +74,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
         except KeyError as e:
             #if word is not in GloVe, adds a random tensor as its embedding;
             # it does so also for both unknown and separator tokens
-            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))
+            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))  #torch.rand((emb_dim, )) 
             word_to_embedding[word] = token_emb
             embedding_list.append(token_emb)
             #print("missing word:", word)
