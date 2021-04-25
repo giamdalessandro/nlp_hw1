@@ -35,10 +35,11 @@ if TRAIN:
     #torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
     train_dataset = WordEmbDataset(TRAIN_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
-    pretrained_emb, emb_dim = load_pretrained_embedding(train_dataset.word_to_idx)
+    #pretrained_emb, emb_dim = load_pretrained_embedding(train_dataset.word_to_idx)
+    emb_dim = train_dataset.get_sample_dim()[0]
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
     
-    my_model = FooClassifier(pretrained_emb=pretrained_emb, input_features=emb_dim, hidden_size=64, output_classes=1)
+    my_model = FooClassifier(input_features=emb_dim, hidden_size=64, output_classes=1)
     optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
 
     print("\n[INFO]: Beginning training ...\n")
@@ -50,7 +51,7 @@ if TRAIN:
     )
 
     # save trained model
-    torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
+    torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train{NUM_EPOCHS}_glove{emb_dim//2}d.pt"))
 
     # plot loss and accuracy to inspect the training
     fig = plt.figure()

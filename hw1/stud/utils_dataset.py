@@ -230,15 +230,15 @@ class WordEmbDataset(Dataset):
             - sep_token : token to separate sentence pairs.
         """
         # load pre-trained embeddings and create embedding module
-        #pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
-        #emb_to_aggregation = EmbAggregation(pretrained_emb)
+        pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
+        emb_to_aggregation = EmbAggregation(pretrained_emb)
         
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
             # apply aggregation function
-            aux_emb = paragraph #emb_to_aggregation(paragraph)
+            aux_emb = emb_to_aggregation(paragraph)
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
             #print(sample)
