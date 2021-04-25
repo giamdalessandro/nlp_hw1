@@ -83,9 +83,9 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     distinct_words = len(word_to_idx)
     print(f"Total of missing embeddings: {missing} ({round(missing/distinct_words,6)*100}% of vocabulary)" )
 
-    #embedding_mat = np.array(embedding_list, dtype=np.float64)
+    embedding_mat = np.array(embedding_list, dtype=np.float64)
     print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
-    return embedding_list, emb_dim
+    return embedding_mat, emb_dim
 
 def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     """

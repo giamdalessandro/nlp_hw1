@@ -5,7 +5,7 @@ from torch import Tensor, LongTensor
 from torch.nn import Module, Embedding
 
 
-def embedding_lookUp(pretrained_emb: list):
+def embedding_lookUp(pretrained_emb: np.ndarray):
     """
     Lookup table that matches a list of word indexes to their respective embedding tensors,
     creating a pytorch embedding module.
