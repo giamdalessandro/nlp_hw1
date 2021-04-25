@@ -33,9 +33,12 @@ class EmbAggregation(Module):
         self.embedding = embedding_lookUp(pretrained)
 
     def forward(self, x: tuple):
+        # apply embedding layer
         #sentence_embs = self.embedding(torch.LongTensor(x))
         s1_emb = self.embedding(LongTensor(x[0]))
         s2_emb = self.embedding(LongTensor(x[1]))
+
+        # apply aggregation function
         #aggregated = self.dummy_aggreggation(sentence_embs)
         aggregated = self.concat_aggregation(s1_emb, s2_emb)
         return aggregated

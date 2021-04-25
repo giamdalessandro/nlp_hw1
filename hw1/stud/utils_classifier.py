@@ -20,7 +20,7 @@ def load_saved_model(save_path: str, input_dim: int=200):
     return model
 
 def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader, 
-            epochs: int = 5, verbose: bool = True):
+            epochs: int = 5, verbose: bool = True, device: str="cpu"):
     """
     Defines the training loop with the given classifier module.
     """
@@ -34,6 +34,10 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
 
         # batches of the training set
         for x, y in train_dataloader:
+            if device == "cuda":
+                x = x.cuda()
+                y = y.cuda()
+
             optimizer.zero_grad()
             batch_out = model(x, y)
             loss = batch_out["loss"]
@@ -42,8 +46,9 @@ def train_loop(model: Module, optimizer: Optimizer, train_dataloader: DataLoader
             optimizer.step()    # updates parameters based on the gradient information
 
             # to compute accuracy
-            y_true.extend(y)
-            y_pred.extend([round(i) for i in batch_out["probabilities"].detach().numpy()])
+            # TODO: we need to move the tensor back to CPU to compute accuracy via scikit-learn
+            y_true.extend(y.cpu())
+            y_pred.extend([round(i) for i in batch_out["probabilities"].cpu().detach().numpy()])
 
         model.global_epoch += 1
         mean_loss = sum(losses) / len(losses)

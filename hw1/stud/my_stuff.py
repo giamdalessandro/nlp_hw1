@@ -13,7 +13,7 @@ from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
 from torch import cuda
-DEVICE = "cuda:0" if cuda.is_available() else "cpu"
+DEVICE = "cuda" if cuda.is_available() else "cpu"
 
 DEV_PATH   = "data/dev.jsonl"
 TRAIN_PATH = "data/train.jsonl"
@@ -44,10 +44,11 @@ if TRAIN:
 
     print("\n[INFO]: Beginning training ...\n")
     history = train_loop(
-        model=my_model,
+        model=my_model.cuda() if DEVICE == "cuda" else my_model,
         train_dataloader=train_dataloader,
         optimizer=optimizer,
-        epochs=NUM_EPOCHS
+        epochs=NUM_EPOCHS,
+        device=DEVICE
     )
 
     # save trained model
