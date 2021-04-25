@@ -5,6 +5,8 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
+from utils_aggregation import EmbAggregation
+
 
 def load_saved_model(save_path: str, input_dim: int=200):
     """
@@ -92,14 +94,18 @@ class FooClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int=64, output_classes: int=1):
+    def __init__(self, pretrained_emb: list, input_features: int, hidden_size: int=64, output_classes: int=1):
         super().__init__()
-        self.hidden_layer = Linear(input_features, hidden_size)
+        self.emb_to_aggregation_layer = EmbAggregation(pretrained_emb)
+        self.input_feature = input_features*2 if self.emb_to_aggregation_layer.aggr_type == "concat" else input_features
+        
+        self.hidden_layer = Linear(self.input_features, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
         self.loss_fn = BCELoss()
         self.global_epoch = 0
 
     def forward(self, x: Tensor, y: Tensor):
+        aggregated_embs = self.emb_to_aggregation_layer(x) 
         hidden_output = self.hidden_layer(x)
         hidden_output = relu(hidden_output)
         

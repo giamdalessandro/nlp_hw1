@@ -83,9 +83,9 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     distinct_words = len(word_to_idx)
     print(f"Total of missing embeddings: {missing} ({round(missing/distinct_words,6)*100}% of vocabulary)" )
 
-    embedding_mat = np.array(embedding_list, dtype=np.float64)
-    print("Total embeddings:",embedding_mat.shape)
-    return embedding_mat, word_to_embedding
+    #embedding_mat = np.array(embedding_list, dtype=np.float64)
+    print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
+    return embedding_list, emb_dim
 
 def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     """
@@ -230,15 +230,15 @@ class WordEmbDataset(Dataset):
             - sep_token : token to separate sentence pairs.
         """
         # load pre-trained embeddings and create embedding module
-        pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
-        emb_to_aggregation = EmbAggregation(pretrained_emb)
+        #pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
+        #emb_to_aggregation = EmbAggregation(pretrained_emb)
         
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
             paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
             # apply aggregation function
-            aux_emb = emb_to_aggregation(paragraph)
+            aux_emb = paragraph #emb_to_aggregation(paragraph)
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
             #print(sample)

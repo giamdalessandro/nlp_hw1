@@ -4,11 +4,13 @@ import torch
 from torch import Tensor, LongTensor 
 from torch.nn import Module, Embedding
 
-def embedding_lookUp(pretrained_emb: np.ndarray):
+
+def embedding_lookUp(pretrained_emb: list):
     """
     Lookup table that matches a list of word indexes to their respective embedding tensors,
     creating a pytorch embedding module.
     """
+    pretrained_emb = np.array(pretrained_emb, dtype=np.float64)
     num_embeddings = pretrained_emb.shape[0]
     embedding_dim  = pretrained_emb.shape[1]
     return Embedding(num_embeddings, embedding_dim).from_pretrained(Tensor(pretrained_emb))
@@ -19,7 +21,7 @@ class EmbAggregation(Module):
     This module implemente a lookup table module to fetch pretrained embeddings, 
     and applies one of the different embedding aggregation functions.
     """
-    def __init__(self, pretrained: np.array):
+    def __init__(self, pretrained: list):
         """
         Args:
             - pretrained: numpy matrix representing the pretrained embeddings.
@@ -27,6 +29,7 @@ class EmbAggregation(Module):
         #torch.set_default_tensor_type('torch.cuda.FloatTensor')
         super().__init__()
         self.training  = False
+        self.aggr_type = "concat"
         self.embedding = embedding_lookUp(pretrained)
 
     def forward(self, x: tuple):
