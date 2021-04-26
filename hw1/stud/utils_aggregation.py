@@ -10,11 +10,10 @@ def embedding_lookUp(pretrained_emb: np.ndarray):
     Lookup table that matches a list of word indexes to their respective embedding tensors,
     creating a pytorch embedding module.
     """
-    pretrained_emb = np.array(pretrained_emb, dtype=np.float64)
+    #pretrained_emb = np.array(pretrained_emb, dtype=np.float64)
     num_embeddings = pretrained_emb.shape[0]
     embedding_dim  = pretrained_emb.shape[1]
     return Embedding(num_embeddings, embedding_dim).from_pretrained(Tensor(pretrained_emb))
-
 
 class EmbAggregation(Module):
     """ TODO

@@ -14,7 +14,7 @@ from utils_aggregation import EmbAggregation
 
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
-PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.100d.txt")
+PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool=False):
@@ -87,37 +87,45 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
     return embedding_mat, emb_dim
 
-def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
+def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn: bool=False):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
     - TODO: may consider lemmas and target words
     - TODO: check whether to merge sentences or not!
     """
-    target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
-    target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
-    s1_indexes = []
-    s2_indexes = []
-    s2 = False
-    merged = merge_pair(spair, sep_token, True)   # may be useless
-    for word in merged:
-        if word == sep_token:
-            s2 = True 
-            continue
-        #elif word == target_s1 or word == target_s2:
-        #    # removing target embeddings words from training data
-        #    continue
-        if not s2:
+    #target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
+    #target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
+    if not rnn:
+        s1_indexes = []
+        for word in spair["sentence1"]:
+            #if word == target_s1:
+            #    continue # removing target embeddings words from training data
             try:
                 s1_indexes.append(word_to_idx[word])
             except KeyError as e:   
                 s1_indexes.append(word_to_idx[unk_token])
-        else:
+        
+        s2_indexes = []
+        for word in spair["sentence2"]:
+            #if word == target_ss:
+            #    continue # removing target embeddings words from training data
             try:
                 s2_indexes.append(word_to_idx[word])
             except KeyError as e:    
                 s2_indexes.append(word_to_idx[unk_token])
+        
+        return s1_indexes, s2_indexes, spair["lemma"]
     
-    return s1_indexes, s2_indexes, spair["lemma"]
+    else:
+        merged = merge_pair(spair, sep_token, True)
+        s_indexes = []
+        for word in merged:
+            try:
+                s_indexes.append(word_to_idx[word])
+            except KeyError as e:    
+                s_indexes.append(word_to_idx[unk_token])
+        
+        return Tensor(s_indexes)
 
 
 class WordEmbDataset(Dataset):
@@ -225,7 +233,7 @@ class WordEmbDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def preprocess_data(self, emb_to_aggregation: Module, unk_token: str="UNK", sep_token: str="SEP"):
+    def preprocess_data(self, emb_to_aggregation: Module=None, unk_token: str="UNK", sep_token: str="SEP", rnn=False):
         """
         Preprocess the data to create data samples suitable for the classifier. 
         The samples are couples having a sentences pair associated with its 
@@ -239,9 +247,11 @@ class WordEmbDataset(Dataset):
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
-            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token)  
-            # apply aggregation function
-            aux_emb = emb_to_aggregation(paragraph)
+            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token, rnn)  
+            
+            # apply aggregation function if working only with embeddings,
+            # otherwise just use the indexified sentences 
+            aux_emb = emb_to_aggregation(paragraph) if not rnn else paragraph
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
             #print(sample)
