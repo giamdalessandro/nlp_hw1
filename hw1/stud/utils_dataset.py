@@ -93,6 +93,8 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
     - TODO: may consider lemmas and target words
     - TODO: check whether to merge sentences or not!
     """
+    target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
+    target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
     s1_indexes = []
     s2_indexes = []
     s2 = False
@@ -101,7 +103,9 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str):
         if word == sep_token:
             s2 = True 
             continue
-
+        #elif word == target_s1 or word == target_s2:
+        #    # removing target embeddings words from training data
+        #    continue
         if not s2:
             try:
                 s1_indexes.append(word_to_idx[word])

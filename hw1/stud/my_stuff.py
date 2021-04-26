@@ -22,7 +22,7 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 70
+NUM_EPOCHS = 50
 BATCH_SIZE = 32
 
 
@@ -52,7 +52,8 @@ sample_dim = train_dataset.get_sample_dim()[0]  # get actual sample dimension
 my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
 optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
 
-print("\n[INFO]: Beginning training ...\n")
+print("\n[INFO]: Beginning training ...")
+print(f"[INFO]: {NUM_EPOCHS} epochs on device {DEVICE}.\n")
 history = train_evaluate( 
     model=my_model.cuda() if DEVICE == "cuda" else my_model,
     train_dataloader=train_dataloader,
@@ -66,14 +67,21 @@ history = train_evaluate(
 torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
 
 # plot loss and accuracy to inspect the training
-fig = plt.figure()
-plt.plot(np.arange(NUM_EPOCHS), history["train_acc"], label="train accuracy")
-plt.plot(np.arange(NUM_EPOCHS), history["eval_acc"], label="val accuracy")
-plt.xlabel("epoch")
-plt.ylabel("score")
-plt.xticks(np.arange(0,NUM_EPOCHS+1,10))
+fig, axs = plt.subplots(2, 1, sharex=True)
+axs[0].plot(np.arange(NUM_EPOCHS), history["train_acc"], label="train accuracy")
+axs[0].plot(np.arange(NUM_EPOCHS), history["eval_acc"], label="val accuracy")
+axs[0].set_xlabel("epoch")
+axs[0].set_ylabel("score")
+axs[0].set_xticks(np.arange(0,NUM_EPOCHS+1,10))
+axs[0].grid()
+axs[0].legend()
+axs[0].set_title("Training history")
 
-plt.title("Training history")
-plt.grid()
-plt.legend()
+axs[1].plot(np.arange(NUM_EPOCHS), history["train_loss"], color="green", label="train loss")
+axs[1].set_xlabel("epoch")
+axs[1].set_ylabel("score")
+axs[1].set_xticks(np.arange(0,NUM_EPOCHS+1,10))
+axs[1].grid()
+axs[1].legend()
+
 plt.show()

@@ -110,7 +110,7 @@ class FooClassifier(Module):
         self.loss_fn = BCELoss()
         self.global_epoch = 0
 
-    def forward(self, x: Tensor, y: Tensor):
+    def forward(self, x: Tensor, y: Tensor=None):
         #aggregated_embs = self.emb_to_aggregation_layer(x) 
         hidden_output = self.hidden_layer(x)
         hidden_output = relu(hidden_output)
@@ -129,35 +129,41 @@ class FooClassifier(Module):
 
 
 ####### RNN Classifier
-def rnn_collate_fn(data_elements):
+def rnn_collate_fn(data_elements: list):  # data_elements is a list of (x, y) pairs
     X, y, x_lens = []
 
-    for de in data_elements:
-        X.append(de[0]) # list of index tensors
-        y.append(de[1])
-        x_lens.append(X.size(0))  # to implement the many-to-one strategy
+    for elem in data_elements:
+        X.append(elem[0]) # list of index tensors
+        y.append(elem[1])
+        x_lens.append(elem[0].size(0)) # to implement the many-to-one strategy
 
     X = torch.nn.utils.rnn.pad_sequence(X, batch_first=True, padding_value=0)
     y = Tensor(y)
     x_lens = Tensor(x_lens, dtype=torch.long)
     return X, x_lens, y
 
-"""
-class FooRecurrentClassifier(Module):
 
-    def __init__(self, pretrained_emb: list, input_features: int, hidden_size: int=64, output_classes: int=1):
+class FooRecurrentClassifier(Module):
+    """ TODO
+    This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
+    """
+    def __init__(self, pretrained_emb: Tensor, hidden_size: int=128, output_classes: int=1):
         super().__init__()
 
-        emb_dim = pretrained_emb.shape()
+        # embedding layer
         self.embedding = Embedding.from_pretrained(pretrained_emb)
 
-        self.rnn = LSTM(input_size=vectors_store.size(1), hidden_size=n_hidden, num_layers=1, batch_first=True)
-        self.hidden_layer = Linear(input_features, hidden_size)
+        # recurrent layers
+        self.rnn = LSTM(input_size=pretrained_emb.size(1), hidden_size=n_hidden, num_layers=1, batch_first=True)
+        
+        # linear layers
+        self.hidden_layer = Linear(hidden_size, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
         self.loss_fn = BCELoss()
+
         self.global_epoch = 0
 
-    def forward(self, x: Tensor, y: Tensor):
+    def forward(self, x: Tensor, x_len: Tensor, y: Tensor=None):
         # embedding words from indices
         embedding_out = self.embedding(X)
 
@@ -172,12 +178,12 @@ class FooRecurrentClassifier(Module):
         summary_vectors_indices = sequences_offsets + last_word_relative_indices
         summary_vectors = flattened_out[summary_vectors_indices]
 
-        out = self.lin1(summary_vectors)
-        out = torch.relu(out)
-        out = self.lin2(out).squeeze(1)
+        out = self.hidden_layer(summary_vectors)
+        out = relu(out)
+        out = self.output_layer(out).squeeze(1)
 
         logits = out
-        pred = torch.softmax(logits, dim=-1)
+        pred = sigmoid(logits, dim=-1)
         result = {'logits': logits, 'pred': pred}
 
         # compute loss
@@ -189,4 +195,3 @@ class FooRecurrentClassifier(Module):
 
     def loss(self, pred, y):
         return self.loss_fn(pred, y)
-"""
