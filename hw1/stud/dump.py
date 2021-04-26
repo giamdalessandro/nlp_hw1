@@ -70,4 +70,19 @@ def evaluate_model(model: Module, test_dataloader: DataLoader):
     final_acc = accuracy_score(y_true, y_pred)
     print("Final val accuracy:", final_acc)
     return {"loss": loss_history, "accuracy": acc_history}
+
+
+
+def eval_saved_model():
+    ## create evaluation Dataset instance
+    dev_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True)
+    dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
+
+    # load the saved model
+    dev_model = load_saved_model(os.path.join(SAVE_PATH, "train110_glove100d.pt"))
+
+    # evaluate the model with the dev data
+    print("\n[INFO]: Beginning evaluation ...\n")
+    #history = evaluate_model(dev_model, dev_dataloader)
+
 """

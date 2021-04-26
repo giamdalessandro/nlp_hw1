@@ -121,8 +121,8 @@ class WordEmbDataset(Dataset):
     Class to manage the dataset and to properly load pretrained embeddings 
     (subclass of torch.util.data.Dataset).
     """
-    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, merge: bool,
-                    word_to_idx: dict=None, dev: bool=False):
+    def __init__(self, data_path: str, unk_token: str, sep_token: str, merge: bool,
+                    vocab_size: int=10000, word_to_idx: dict=None, dev: bool=False):
         """
         Args:
             - data_path   : Path to the dataset file;

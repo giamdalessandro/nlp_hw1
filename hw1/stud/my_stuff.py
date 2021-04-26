@@ -22,61 +22,58 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 150
+NUM_EPOCHS = 70
 BATCH_SIZE = 32
-
-TRAIN = True
-DEV_VOCAB_SIZE = 8000
 
 
 print("\n################## my_stuff test code ################")
-if TRAIN:    
-    print("Current cuda device ->", torch.cuda.get_device_name(torch.cuda.current_device()))
-    #torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-    # create Dataset instance to handle training data
-    train_dataset = WordEmbDataset(TRAIN_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
-    
-    #load pre-trained GloVe embeddings
-    pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
-    emb_to_aggregation = EmbAggregation(pretrained_emb)
-    
-    train_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
+#torch.set_default_tensor_type('torch.cuda.FloatTensor')
+print("Current cuda device ->", torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    # create Dataset instance to handle dev data
-    dev_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True,
-                                 word_to_idx=train_dataset.word_to_idx, dev=True)
-    dev_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
-    dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
+# create Dataset instance to handle training data
+train_dataset = WordEmbDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
 
-    # instanciate NN classifier   
-    sample_dim = train_dataset.get_sample_dim()[0]  # get actual sample dimension
-    my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
-    optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
+#load pre-trained GloVe embeddings
+pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+emb_to_aggregation = EmbAggregation(pretrained_emb)
 
-    print("\n[INFO]: Beginning training ...\n")
-    history = train_evaluate( 
-        model=my_model.cuda() if DEVICE == "cuda" else my_model,
-        train_dataloader=train_dataloader,
-        valid_dataloader=dev_dataloader,
-        optimizer=optimizer,
-        epochs=NUM_EPOCHS,
-        device=DEVICE
-    )
+train_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
 
-    # save trained model
-    torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
+# create Dataset instance to handle dev data
+dev_dataset = WordEmbDataset(DEV_PATH, UNK, SEP, merge=True,
+                                word_to_idx=train_dataset.word_to_idx, dev=True)
+dev_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
+dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
 
-    # plot loss and accuracy to inspect the training
-    fig = plt.figure()
-    plt.plot(np.arange(NUM_EPOCHS), history["train_acc"], label="train accuracy")
-    plt.plot(np.arange(NUM_EPOCHS), history["eval_acc"], label="val accuracy")
-    plt.xlabel("epoch")
-    plt.ylabel("score")
-    plt.xticks(np.arange(0,NUM_EPOCHS+1,10))
-    
-    plt.title("Training history")
-    plt.grid()
-    plt.legend()
-    plt.show()
+# instanciate NN classifier   
+sample_dim = train_dataset.get_sample_dim()[0]  # get actual sample dimension
+my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
+optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
+
+print("\n[INFO]: Beginning training ...\n")
+history = train_evaluate( 
+    model=my_model.cuda() if DEVICE == "cuda" else my_model,
+    train_dataloader=train_dataloader,
+    valid_dataloader=dev_dataloader,
+    optimizer=optimizer,
+    epochs=NUM_EPOCHS,
+    device=DEVICE
+)
+
+# save trained model
+torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
+
+# plot loss and accuracy to inspect the training
+fig = plt.figure()
+plt.plot(np.arange(NUM_EPOCHS), history["train_acc"], label="train accuracy")
+plt.plot(np.arange(NUM_EPOCHS), history["eval_acc"], label="val accuracy")
+plt.xlabel("epoch")
+plt.ylabel("score")
+plt.xticks(np.arange(0,NUM_EPOCHS+1,10))
+
+plt.title("Training history")
+plt.grid()
+plt.legend()
+plt.show()

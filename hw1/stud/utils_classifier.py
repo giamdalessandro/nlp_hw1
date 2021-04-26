@@ -1,3 +1,4 @@
+import torch
 from torch import Tensor, load
 from torch import relu, sigmoid
 from torch.nn import Module, Linear, BCELoss, LSTM, Embedding
@@ -19,22 +20,8 @@ def load_saved_model(save_path: str, input_dim: int=200):
     print(model.state_dict().keys())
     return model
 
-def eval_saved_model():
-    ## create evaluation Dataset instance
-    dev_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True)
-    dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
-
-    # load the saved model
-    dev_model = load_saved_model(os.path.join(SAVE_PATH, "train110_glove100d.pt"))
-
-    # evaluate the model with the dev data
-    print("\n[INFO]: Beginning evaluation ...\n")
-    history = evaluate_model(dev_model, dev_dataloader)
-
-#@torch.no_grad()
+@torch.no_grad()
 def evaluate_accuracy(model: Module, dataloader: DataLoader):#
-    #correct_predictions = 0
-    #num_predictions = 0
     y_true = []
     y_pred = []
     for x, y in dataloader:
@@ -43,11 +30,8 @@ def evaluate_accuracy(model: Module, dataloader: DataLoader):#
 
         y_true.extend(y.cpu())
         y_pred.extend([round(i) for i in output["probabilities"].cpu().detach().numpy()])
-        #correct_predictions += (predictions == y).sum()
-        #num_predictions += predictions.shape[0]
-
+        
     final_acc = accuracy_score(y_true, y_pred)
-    #accuracy = correct_predictions / num_predictions
     return { "accuracy" : final_acc }
 
 def train_evaluate(
