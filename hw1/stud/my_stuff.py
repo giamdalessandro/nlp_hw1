@@ -7,8 +7,7 @@ from typing import List, Tuple, Any, Dict
 from torch.optim import SGD
 from torch.utils.data import Dataset, DataLoader
 
-from utils_classifier import FooClassifier, train_loop, load_saved_model, \
-                             evaluate_model, train_evaluate
+from utils_classifier import FooClassifier, load_saved_model, train_evaluate
 from utils_dataset import WordEmbDataset, load_pretrained_embedding
 from utils_aggregation import EmbAggregation
 
@@ -23,7 +22,7 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 100
+NUM_EPOCHS = 150
 BATCH_SIZE = 32
 
 TRAIN = True
@@ -32,20 +31,29 @@ DEV_VOCAB_SIZE = 8000
 
 print("\n################## my_stuff test code ################")
 if TRAIN:    
-    print("current cuda device:", torch.cuda.get_device_name(torch.cuda.current_device()))
+    print("Current cuda device ->", torch.cuda.get_device_name(torch.cuda.current_device()))
     #torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
+    # create Dataset instance to handle training data
     train_dataset = WordEmbDataset(TRAIN_PATH, VOCAB_SIZE, UNK, SEP, merge=True)
-    #pretrained_emb, emb_dim = load_pretrained_embedding(train_dataset.word_to_idx)
-    emb_dim = train_dataset.get_sample_dim()[0]
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
     
-    my_model = FooClassifier(input_features=emb_dim, hidden_size=64, output_classes=1)
-    optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
+    #load pre-trained GloVe embeddings
+    pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+    emb_to_aggregation = EmbAggregation(pretrained_emb)
+    
+    train_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
 
-    # create evaluation Dataset instance
-    dev_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True)
+    # create Dataset instance to handle dev data
+    dev_dataset = WordEmbDataset(DEV_PATH, DEV_VOCAB_SIZE, UNK, SEP, merge=True,
+                                 word_to_idx=train_dataset.word_to_idx, dev=True)
+    dev_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
     dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
+
+    # instanciate NN classifier   
+    sample_dim = train_dataset.get_sample_dim()[0]  # get actual sample dimension
+    my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
+    optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
 
     print("\n[INFO]: Beginning training ...\n")
     history = train_evaluate( 
@@ -58,7 +66,7 @@ if TRAIN:
     )
 
     # save trained model
-    torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{emb_dim//2}d.pt"))
+    torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
 
     # plot loss and accuracy to inspect the training
     fig = plt.figure()

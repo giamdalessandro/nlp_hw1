@@ -121,7 +121,8 @@ class WordEmbDataset(Dataset):
     Class to manage the dataset and to properly load pretrained embeddings 
     (subclass of torch.util.data.Dataset).
     """
-    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, merge: bool):
+    def __init__(self, data_path: str, vocab_size: int, unk_token: str, sep_token: str, merge: bool,
+                    word_to_idx: dict=None, dev: bool=False):
         """
         Args:
             - data_path   : Path to the dataset file;
@@ -129,13 +130,13 @@ class WordEmbDataset(Dataset):
             - unk_token   : token to represent unknown words;
             - window_size : Number of words to consider as context.
         """
-        self.unk_token = unk_token
-        self.sep_token = sep_token
+        self.unk_token   = unk_token
+        self.sep_token   = sep_token
+        self.word_to_idx = word_to_idx  # passed when creating dev data module
         self.data_json = self.__read_dataset(data_path)  
-        # Build the vocabolary that will be used for training, and initialize some useful data structures
-        self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
-        # Preprocess the dateset and provide the aggregated samples
-        self.data_samples = self.__preprocess_data(unk_token, sep_token)
+        if not dev:
+            # Build the vocabolary that will be used for training, and initialize some useful data structures
+            self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
 
     def __tokenize_line(self, line: str, pattern='\W'):
         """
@@ -148,7 +149,7 @@ class WordEmbDataset(Dataset):
         """
         Reads the dataset and converts each sentence in the input file into a list of tokenized words.
         """       
-        print(f"[INFO]: Loading data from '{data_path}'...")
+        print(f"\n[INFO]: Loading data from '{data_path}'...")
         sentence_pairs = []
         labels = []
 
@@ -220,7 +221,7 @@ class WordEmbDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def __preprocess_data(self, unk_token: str, sep_token: str):
+    def preprocess_data(self, emb_to_aggregation: Module, unk_token: str="UNK", sep_token: str="SEP"):
         """
         Preprocess the data to create data samples suitable for the classifier. 
         The samples are couples having a sentences pair associated with its 
@@ -229,9 +230,7 @@ class WordEmbDataset(Dataset):
             - unk_token : token to associate with unknown words;
             - sep_token : token to separate sentence pairs.
         """
-        # load pre-trained embeddings and create embedding module
-        pretrained_emb, _ = load_pretrained_embedding(self.word_to_idx)
-        emb_to_aggregation = EmbAggregation(pretrained_emb)
+        assert self.word_to_idx is not None
         
         count = 0
         samples = []
@@ -246,7 +245,8 @@ class WordEmbDataset(Dataset):
             count += 1
 
         print(f"Loaded {count} samples.")
-        return samples
+        self.data_samples = samples
+        return
 
     def get_sample_dim(self, idx: int=0):
         """ Returns the idx-th sample pair dimensions, where a sample is a tuple (pair, label)"""
