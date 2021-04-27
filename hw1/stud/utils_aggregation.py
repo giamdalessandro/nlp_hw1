@@ -36,10 +36,11 @@ class EmbAggregation(Module):
         #sentence_embs = self.embedding(torch.LongTensor(x))
         s1_emb = self.embedding(LongTensor(x[0]))
         s2_emb = self.embedding(LongTensor(x[1]))
+        lemma = self.embedding(LongTensor([x[2]]))
 
         # apply aggregation function
-        #aggregated = self.dummy_aggreggation(sentence_embs)
-        aggregated = self.concat_aggregation(s1_emb, s2_emb)
+        #aggregated = self.concat_diff_aggregation(s1_emb,s2_emb,lemma)
+        aggregated = self.concat_aggregation(s1_emb,s2_emb)
         return aggregated
 
 
@@ -61,3 +62,17 @@ class EmbAggregation(Module):
         m_1_sqr = torch.mul(m_1,m_1)
         m_2_sqr = torch.mul(m_2,m_2)
         return torch.abs(torch.sub(m_2,m_1)).float()
+
+    def concat_diff_aggregation(self, s1_emb, s2_emb, lemma):
+        m_1 = torch.mean(s1_emb, dim=0).float()
+        m_2 = torch.mean(s2_emb, dim=0).float()
+        cos_m1 = self.cosine_similarity(m_1,lemma)
+        cos_m2 = self.cosine_similarity(m_2,lemma)
+        m_1 = torch.mul(m_1, cos_m1)
+        m_2 = torch.mul(m_2, cos_m2)
+        return torch.cat([m_1,m_2]).float()
+        
+    def cosine_similarity(self, v1: torch.Tensor, v2: torch.Tensor):
+        num = torch.sum(v1 * v2)
+        den = torch.linalg.norm(v1) * torch.linalg.norm(v2)
+        return (num / den).item()

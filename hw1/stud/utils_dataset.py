@@ -94,13 +94,16 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn
     - TODO: may consider lemmas and target words
     - TODO: check whether to merge sentences or not!
     """
-    #print(spair["sentence1"])
-    target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
-    target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
-    #print(target1,target2)
+    try:
+        lemma_idx = word_to_idx[spair["lemma"]]
+    except KeyError as e:    
+        lemma_idx = word_to_idx[unk_token]
+
     if not rnn:
+        target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
+        target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
         s1_indexes = []
-        for word in spair["sentence1"].split():
+        for word in spair["sentence1"].strip().split():
             if word == target_s1:
                 word = spair["lemma"]  # lemmatization 
             try:
@@ -109,7 +112,7 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn
                 s1_indexes.append(word_to_idx[unk_token])
         
         s2_indexes = []
-        for word in spair["sentence2"].split():
+        for word in spair["sentence2"].strip().split():
             if word == target_s2:
                 word = spair["lemma"]  # lemmatization
             try:
@@ -117,7 +120,7 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn
             except KeyError as e:    
                 s2_indexes.append(word_to_idx[unk_token])
         
-        return s1_indexes, s2_indexes, spair["lemma"]
+        return s1_indexes, s2_indexes, lemma_idx
     
     else:
         merged = merge_pair(spair, sep_token, True)

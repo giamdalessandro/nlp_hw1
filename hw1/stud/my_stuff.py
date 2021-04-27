@@ -23,7 +23,7 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 70
+NUM_EPOCHS = 150
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
@@ -92,7 +92,8 @@ elif APPROACH == "rnn":
         valid_dataloader=dev_dataloader,
         optimizer=optimizer,
         epochs=NUM_EPOCHS,
-        rnn=True
+        rnn=True,
+        device="cpu"
     )
 
 # save trained model
