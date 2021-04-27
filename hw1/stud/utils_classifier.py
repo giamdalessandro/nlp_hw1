@@ -42,8 +42,8 @@ def evaluate_accuracy_rnn(model: Module, dataloader: DataLoader):#
         output = model(x, x_len, y)
         predictions = output['probabilities'].argmax(dim=-1)
 
-        y_true.extend(y.cpu())
-        y_pred.extend([round(i) for i in output["probabilities"].cpu().detach().numpy()])
+        y_true.extend(y)
+        y_pred.extend([round(i) for i in output["probabilities"].detach().numpy()])
         
     final_acc = accuracy_score(y_true, y_pred)
     return { "accuracy" : final_acc }
@@ -227,7 +227,7 @@ class FooRecurrentClassifier(Module):
     """ TODO
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
-    def __init__(self, pretrained_emb, hidden_size: int=128, output_classes: int=1):
+    def __init__(self, pretrained_emb, hidden_size: int=64, output_classes: int=1):
         super().__init__()
 
         # embedding layer
@@ -237,9 +237,9 @@ class FooRecurrentClassifier(Module):
         self.rnn = LSTM(input_size=pretrained_emb.shape[1], hidden_size=hidden_size, num_layers=1, batch_first=True)
         
         # linear layers
-        self.hidden_layer = Linear(hidden_size, hidden_size).cuda()
-        self.output_layer = Linear(hidden_size, output_classes).cuda()
-        self.loss_fn = BCELoss().cuda()
+        self.hidden_layer = Linear(hidden_size, hidden_size)
+        self.output_layer = Linear(hidden_size, output_classes)
+        self.loss_fn = BCELoss()
 
         self.global_epoch = 0
 
@@ -258,17 +258,17 @@ class FooRecurrentClassifier(Module):
         summary_vectors_indices = sequences_offsets + last_word_relative_indices
         summary_vectors = flattened_out[summary_vectors_indices]
 
-        out = self.hidden_layer(summary_vectors.cuda())
+        out = self.hidden_layer(summary_vectors)
         out = relu(out)
         out = self.output_layer(out).squeeze(1)
 
         logits = out
-        preds = sigmoid(logits.cuda())
-        result = {'logits': logits, 'probabilities': preds.cpu()}
+        preds = sigmoid(logits)
+        result = {'logits': logits, 'probabilities': preds}
 
         # compute loss
         if y is not None:
-            loss = self.loss(preds, y.cuda().float())
+            loss = self.loss(preds, y.float())
             result['loss'] = loss
 
         return result

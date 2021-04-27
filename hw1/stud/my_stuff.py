@@ -91,7 +91,7 @@ elif APPROACH == "rnn":
         train_dataloader=train_dataloader,
         valid_dataloader=dev_dataloader,
         optimizer=optimizer,
-        epochs=NUM_EPOCHS,
+        epochs=NUM_EPOCHS
     )
 
 # save trained model
