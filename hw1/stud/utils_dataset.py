@@ -14,7 +14,7 @@ from utils_aggregation import EmbAggregation
 
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
-PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
+PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.100d.txt")
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool=False):
@@ -22,7 +22,8 @@ def merge_pair(spair: dict, sep_token: str, separate: bool=False):
     Merge the sentences of a pair into one context, where the two are separated 
     by the sep_token.
     """
-    s1, s2 = spair["sentence1"], spair["sentence2"]
+    s1 = spair["sentence1"].strip().split(" ")
+    s2 = spair["sentence2"].strip().split(" ")
     if separate:
         s1.append(sep_token)
     s1.extend(s2)
@@ -93,22 +94,24 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn
     - TODO: may consider lemmas and target words
     - TODO: check whether to merge sentences or not!
     """
-    #target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
-    #target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
+    #print(spair["sentence1"])
+    target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
+    target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
+    #print(target1,target2)
     if not rnn:
         s1_indexes = []
-        for word in spair["sentence1"]:
-            #if word == target_s1:
-            #    continue # removing target embeddings words from training data
+        for word in spair["sentence1"].split():
+            if word == target_s1:
+                word = spair["lemma"]  # lemmatization 
             try:
                 s1_indexes.append(word_to_idx[word])
             except KeyError as e:   
                 s1_indexes.append(word_to_idx[unk_token])
         
         s2_indexes = []
-        for word in spair["sentence2"]:
-            #if word == target_ss:
-            #    continue # removing target embeddings words from training data
+        for word in spair["sentence2"].split():
+            if word == target_s2:
+                word = spair["lemma"]  # lemmatization
             try:
                 s2_indexes.append(word_to_idx[word])
             except KeyError as e:    
@@ -155,7 +158,11 @@ class WordEmbDataset(Dataset):
         Tokenizes a single line (e.g. "The pen is on the table" -> 
         ["the, "pen", "is", "on", "the", "table"]).
         """
-        return [word.lower() for word in re.split(pattern, line.lower()) if word]
+        res = ""
+        for word in re.split(pattern, line.lower()):
+            if word:
+                res += " " + word.lower()
+        return res
 
     def __read_dataset(self, data_path: str):
         """
@@ -200,10 +207,12 @@ class WordEmbDataset(Dataset):
         """
         print("\n[INFO]: building vocabulary ...")
         counter_list = []
+        lemma_list = []
         for spair in self.data_json[0]:
             # context is a list of tokens within a single sentence
             context = merge_pair(spair=spair, sep_token=sep_token)
             counter_list.extend(context)
+            lemma_list.append(context[-1])
             
         counter = collections.Counter(counter_list)
         self.distinct_words = len(counter)

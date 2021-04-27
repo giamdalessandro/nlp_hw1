@@ -53,15 +53,17 @@ def train_evaluate(
         optimizer: Optimizer, 
         train_dataloader: DataLoader, 
         valid_dataloader: DataLoader, 
-        valid_fn = evaluate_accuracy, 
+        valid_fn = None, 
         epochs: int = 5, 
-        verbose: bool = True, 
+        verbose: bool = True,
+        rnn: bool = False, 
         device: str="cpu"
     ):
     """
     Defines the training-validation loop with the given classifier and 
     the train and validation dataloaders.
     """
+    valid_fn = evaluate_accuracy if not rnn else evaluate_accuracy_rnn
     loss_history = []
     train_history  = []
     valid_history = []
@@ -72,77 +74,17 @@ def train_evaluate(
         y_pred = []
 
         # batches of the training set
-        for x, y in train_dataloader:
-            if device == "cuda":
-                x = x.cuda()
-                y = y.cuda()
+        for sample in train_dataloader:
+            if len(sample) == 3:
+                x = sample[0].to(device)
+                x_len = sample[1].to(device)
+                y = sample[2].to(device)
+            else:
+                x = sample[0].to(device)
+                y = sample[1].to(device)
 
             optimizer.zero_grad()
-            batch_out = model(x, y)
-            loss = batch_out["loss"]
-            losses.append(loss)           
-            loss.backward()     # computes the gradient of the loss
-            optimizer.step()    # updates parameters based on the gradient information
-
-            # to compute accuracy
-            # TODO: we need to move the tensor back to CPU to compute accuracy via scikit-learn
-            y_true.extend(y.cpu())
-            y_pred.extend([round(i) for i in batch_out["probabilities"].cpu().detach().numpy()])
-
-        model.global_epoch += 1
-        mean_loss = sum(losses) / len(losses)
-        loss_history.append(mean_loss.item())
-
-        acc = accuracy_score(y_true, y_pred)
-        train_history.append(acc)
-        if verbose or epoch == epochs - 1:
-            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}, \ttrain accuracy: {acc:0.4f}')
-           
-        if verbose and valid_dataloader:
-            assert valid_fn is not None
-            valid_output = valid_fn(model, valid_dataloader)
-            valid_value = valid_output["accuracy"]
-            valid_history.append(valid_value)
-            print(f"    Validation => accuracy: {valid_value:0.6f}\n")
-
-    history = {}
-    history["train_loss"] = loss_history
-    history["train_acc"] = train_history
-    history["eval_acc"] = valid_history
-    return history 
-
-def train_evaluate_rnn(
-        model: Module, 
-        optimizer: Optimizer, 
-        train_dataloader: DataLoader, 
-        valid_dataloader: DataLoader, 
-        valid_fn = evaluate_accuracy_rnn, 
-        epochs: int = 5, 
-        verbose: bool = True, 
-        device: str="cpu"
-    ):
-    """
-    Defines the training-validation loop with the given classifier and 
-    the train and validation dataloaders.
-    """
-    loss_history = []
-    train_history  = []
-    valid_history = []
-
-    for epoch in range(epochs):
-        losses = []
-        y_true = []
-        y_pred = []
-
-        # batches of the training set
-        for x, x_len, y in train_dataloader:
-            if device == "cuda":
-                x = x.cuda()
-                x_len = x_len.cuda()
-                y = y.cuda()
-
-            optimizer.zero_grad()
-            batch_out = model(x, x_len, y)
+            batch_out = model(x, y) if not rnn else model(x, x_len, y) 
             loss = batch_out["loss"]
             losses.append(loss)           
             loss.backward()     # computes the gradient of the loss
@@ -159,7 +101,7 @@ def train_evaluate_rnn(
         acc = accuracy_score(y_true, y_pred)
         train_history.append(acc)
         if verbose or epoch == epochs - 1:
-            print(f'  Epoch {model.global_epoch:3d} => Loss: {mean_loss:0.6f}, \ttrain accuracy: {acc:0.4f}')
+            print(f'  Epoch {model.global_epoch:3d}/{epochs} => Loss: {mean_loss:0.6f}, \ttrain accuracy: {acc:0.4f}')
            
         if verbose and valid_dataloader:
             assert valid_fn is not None
@@ -184,15 +126,18 @@ class FooClassifier(Module):
         super().__init__()
         #self.emb_to_aggregation_layer = EmbAggregation(pretrained_emb)
         #self.input_feature = input_features*2 if self.emb_to_aggregation_layer.aggr_type == "concat" else input_features
-        self.hidden_layer = Linear(input_features, hidden_size)
+        self.hidden1_layer = Linear(input_features, hidden_size)
+        self.hidden2_layer = Linear(hidden_size, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
         self.loss_fn = BCELoss()
         self.global_epoch = 0
 
     def forward(self, x: Tensor, y: Tensor=None):
         #aggregated_embs = self.emb_to_aggregation_layer(x) 
-        hidden_output = self.hidden_layer(x)
-        hidden_output = relu(hidden_output)
+        hidden1 = self.hidden1_layer(x)
+        hidden1_out = relu(hidden1)
+        hidden2 = self.hidden2_layer(hidden1_out)
+        hidden_output = relu(hidden2)
         
         logits = self.output_layer(hidden_output).squeeze(1)
         probabilities = sigmoid(logits)

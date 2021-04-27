@@ -8,7 +8,7 @@ from torch.optim import SGD
 from torch.utils.data import Dataset, DataLoader
 
 from utils_classifier import FooClassifier, FooRecurrentClassifier, load_saved_model, \
-                            train_evaluate, train_evaluate_rnn, rnn_collate_fn
+                            train_evaluate, rnn_collate_fn
 from utils_dataset import WordEmbDataset, load_pretrained_embedding
 from utils_aggregation import EmbAggregation
 
@@ -23,12 +23,12 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 10000
-NUM_EPOCHS = 5
+NUM_EPOCHS = 70
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
 APPROACH = "wordEmb"
-PLOT = False   
+PLOT = True   
 print("\n################## my_stuff test code ################")
 
 #torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -52,7 +52,7 @@ if APPROACH == "wordEmb":
 
     # instanciate NN classifier   
     sample_dim = train_dataset.get_sample_dim()[0]  # get actual sample dimension
-    my_model = FooClassifier(input_features=sample_dim, hidden_size=64, output_classes=1)
+    my_model = FooClassifier(input_features=sample_dim)
     optimizer = SGD(my_model.parameters(), lr=0.3, momentum=0.001)
 
     print("\n[INFO]: Beginning basic WordEmb training ...")
@@ -91,11 +91,12 @@ elif APPROACH == "rnn":
         train_dataloader=train_dataloader,
         valid_dataloader=dev_dataloader,
         optimizer=optimizer,
-        epochs=NUM_EPOCHS
+        epochs=NUM_EPOCHS,
+        rnn=True
     )
 
 # save trained model
-#torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d.pt"))
+torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"train_eval{NUM_EPOCHS}_glove{sample_dim//2}d_lemma.pt"))
 
 if PLOT:
     # plot loss and accuracy to inspect the training
