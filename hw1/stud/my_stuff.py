@@ -14,7 +14,7 @@ from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
 from torch import cuda
-DEVICE = "cpu" #"cuda" if cuda.is_available() else "cpu"
+DEVICE = "cuda" if cuda.is_available() else "cpu"
 
 DEV_PATH   = "data/dev.jsonl"
 TRAIN_PATH = "data/train.jsonl"
@@ -27,7 +27,7 @@ NUM_EPOCHS = 5
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
-APPROACH = "rnn"
+APPROACH = "wordEmb"
 PLOT = False   
 print("\n################## my_stuff test code ################")
 
