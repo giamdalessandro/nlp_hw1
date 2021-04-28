@@ -23,7 +23,7 @@ SAVE_PATH  = "model/train/"
 UNK = "UNK"
 SEP = "SEP"
 VOCAB_SIZE = 15000
-NUM_EPOCHS = 70
+NUM_EPOCHS = 25
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
@@ -92,12 +92,13 @@ elif APPROACH == "rnn":
         valid_dataloader=dev_dataloader,
         optimizer=optimizer,
         epochs=NUM_EPOCHS,
+        early_stopping=False,
         rnn=True,
         device="cpu"
     )
 
 # save trained model
-torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"rnn{NUM_EPOCHS}_glove100d_lemma.pt"))
+torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"rnn{NUM_EPOCHS}_glove50d_lemma_first_sub.pt"))
 
 if PLOT:
     # plot loss and accuracy to inspect the training
