@@ -5,6 +5,10 @@ import collections
 import jsonlines
 import numpy as np
 
+import nltk
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
 import torch
 from torch import Tensor, LongTensor
 from torch.nn import Embedding, Module
@@ -88,10 +92,10 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
     return embedding_mat, emb_dim
 
-def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn: bool=False):
+def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, stopwords, rnn: bool=False):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
-    - TODO: may consider lemmas and target words
+    - TODO: may consider lemmas and stopwords
     - TODO: check whether to merge sentences or not!
     """
     try:
@@ -106,6 +110,8 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, rnn
         for word in spair["sentence1"].strip().split():
             if word == target_s1:
                 word = spair["lemma"]  # lemmatization 
+            elif word in stopwords:
+                continue
             try:
                 s1_indexes.append(word_to_idx[word])
             except KeyError as e:   
@@ -161,6 +167,7 @@ class WordEmbDataset(Dataset):
         Tokenizes a single line (e.g. "The pen is on the table" -> 
         ["the, "pen", "is", "on", "the", "table"]).
         """
+        #tokens = nltk.word_tokenize(line)
         res = ""
         for word in re.split(pattern, line.lower()):
             if word:
@@ -255,11 +262,12 @@ class WordEmbDataset(Dataset):
             - sep_token : token to separate sentence pairs.
         """
         assert self.word_to_idx is not None
+        stopWords = set(stopwords.words('english'))
         
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
-            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token, rnn)  
+            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token, stopWords, rnn)  
             
             # apply aggregation function if working only with embeddings,
             # otherwise just use the indexified sentences 

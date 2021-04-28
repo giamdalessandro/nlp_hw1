@@ -22,13 +22,13 @@ SAVE_PATH  = "model/train/"
 
 UNK = "UNK"
 SEP = "SEP"
-VOCAB_SIZE = 10000
-NUM_EPOCHS = 150
+VOCAB_SIZE = 18000
+NUM_EPOCHS = 100
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
 APPROACH = "wordEmb"
-PLOT = True   
+PLOT = False   
 print("\n################## my_stuff test code ################")
 
 #torch.set_default_tensor_type('torch.cuda.FloatTensor')

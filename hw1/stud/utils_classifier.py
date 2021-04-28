@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+
 from torch import Tensor, LongTensor, load
 from torch import relu, sigmoid
 from torch.nn import Module, Linear, BCELoss, LSTM, Embedding
@@ -53,10 +55,12 @@ def train_evaluate(
         optimizer: Optimizer, 
         train_dataloader: DataLoader, 
         valid_dataloader: DataLoader, 
-        valid_fn = None, 
-        epochs: int = 5, 
-        verbose: bool = True,
-        rnn: bool = False, 
+        valid_fn=None, 
+        epochs: int=5, 
+        verbose: bool=True,
+        early_stopping: bool=True,
+        patience: int=5,
+        rnn: bool=False, 
         device: str="cpu"
     ):
     """
@@ -64,8 +68,9 @@ def train_evaluate(
     the train and validation dataloaders.
     """
     valid_fn = evaluate_accuracy if not rnn else evaluate_accuracy_rnn
-    loss_history = []
-    train_history  = []
+    patience_cnt = patience
+    loss_history  = []
+    train_history = []
     valid_history = []
 
     for epoch in range(epochs):
@@ -108,7 +113,26 @@ def train_evaluate(
             valid_output = valid_fn(model, valid_dataloader)
             valid_value = valid_output["accuracy"]
             valid_history.append(valid_value)
-            print(f"    Validation => accuracy: {valid_value:0.6f}\n")
+            print(f"\t\tValidation => accuracy: {valid_value:0.6f}\n")
+            if early_stopping:
+                if patience_cnt <= 0:
+                    print(f"[INFO]: Early stop! -> patience: {patience_cnt}")
+                    break
+
+                if epoch > 0 and valid_history[-1] < valid_history[-2]:
+                    patience_cnt -= 1
+                    print(f"(patience dec: {patience_cnt})")
+
+                elif epoch > 20 and valid_history[-1] >= valid_history[-2] and loss_history[-1] <= loss_history[-2]:
+                    patience_cnt += 1
+                    print(f"(patience inc: {patience_cnt})")
+
+    print("\n[INFO]: training summary...")
+    print("[INFO]: accuracy scores...")
+    print(f"avg_train: {np.mean(np.array(train_history)):0.6f}")
+    print(f"avg_eval : {np.mean(np.array(valid_history)):0.6f}")
+    print(f"max_train: {np.max(np.array(train_history)):0.6f}")
+    print(f"max_eval : {np.max(np.array(valid_history)):0.6f}")
 
     history = {}
     history["train_loss"] = loss_history
@@ -122,7 +146,7 @@ class FooClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int=64, output_classes: int=1):
+    def __init__(self, input_features: int, hidden_size: int=100, output_classes: int=1):
         super().__init__()
         #self.emb_to_aggregation_layer = EmbAggregation(pretrained_emb)
         #self.input_feature = input_features*2 if self.emb_to_aggregation_layer.aggr_type == "concat" else input_features
