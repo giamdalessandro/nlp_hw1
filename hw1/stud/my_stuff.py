@@ -106,7 +106,7 @@ if PLOT:
     axs[0].plot(np.arange(len(history["eval_acc"])), history["eval_acc"], label="val accuracy")
     axs[0].set_xlabel("epoch")
     axs[0].set_ylabel("score")
-    axs[0].set_xticks(np.arange(0,NUM_EPOCHS+1,10))
+    axs[0].set_xticks(np.arange(0,len(history["eval_acc"])+1,10))
     axs[0].grid()
     axs[0].legend()
     axs[0].set_title("Training history")
@@ -114,7 +114,7 @@ if PLOT:
     axs[1].plot(np.arange(len(history["train_loss"])), history["train_loss"], color="green", label="train loss")
     axs[1].set_xlabel("epoch")
     axs[1].set_ylabel("score")
-    axs[1].set_xticks(np.arange(0,NUM_EPOCHS+1,10))
+    axs[1].set_xticks(np.arange(0,len(history["train_loss"])+1,10))
     axs[1].grid()
     axs[1].legend()
 

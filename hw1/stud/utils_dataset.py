@@ -136,9 +136,11 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, sto
     else:
         #s1_indexes.append(lemma_idx)
         #s2_indexes.append(lemma_idx)
-        s1_indexes = [lemma_idx].append(s1_indexes)
-        s2_indexes = [lemma_idx].append(s2_indexes)
-        return Tensor(s1_indexes),Tensor(s2_indexes)
+        s1_idx = [lemma_idx]
+        s1_idx.extend(s1_indexes)
+        s2_idx = [lemma_idx]
+        s2_idx.extend(s2_indexes)
+        return Tensor(s1_idx),Tensor(s2_idx)
 
 
 class WiCDataset(Dataset):
