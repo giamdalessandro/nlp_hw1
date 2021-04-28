@@ -18,7 +18,7 @@ from utils_aggregation import EmbAggregation
 
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
-PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.100d.txt")
+PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool=False):
@@ -103,44 +103,45 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, sto
     except KeyError as e:    
         lemma_idx = word_to_idx[unk_token]
 
-    if not rnn:
-        target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
-        target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
-        s1_indexes = []
-        for word in spair["sentence1"].strip().split():
-            if word == target_s1:
-                word = spair["lemma"]  # lemmatization 
-            elif word in stopwords:
+    target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
+    target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
+    s1_indexes = []
+    for word in spair["sentence1"].strip().split():
+        if word == target_s1:
+            word = spair["lemma"]  # lemmatization of target
+            if rnn:
                 continue
-            try:
-                s1_indexes.append(word_to_idx[word])
-            except KeyError as e:   
-                s1_indexes.append(word_to_idx[unk_token])
-        
-        s2_indexes = []
-        for word in spair["sentence2"].strip().split():
-            if word == target_s2:
-                word = spair["lemma"]  # lemmatization
-            try:
-                s2_indexes.append(word_to_idx[word])
-            except KeyError as e:    
-                s2_indexes.append(word_to_idx[unk_token])
-        
-        return s1_indexes, s2_indexes, lemma_idx
+        elif word in stopwords:
+            continue
+        try:
+            s1_indexes.append(word_to_idx[word])
+        except KeyError as e:   
+            s1_indexes.append(word_to_idx[unk_token])
     
+    s2_indexes = []
+    for word in spair["sentence2"].strip().split():
+        if word == target_s2:
+            word = spair["lemma"]  # lemmatization of target
+            if rnn:
+                continue
+        elif word in stopwords:
+            continue
+        try:
+            s2_indexes.append(word_to_idx[word])
+        except KeyError as e:    
+            s2_indexes.append(word_to_idx[unk_token])
+    
+    if not rnn:
+        return s1_indexes, s2_indexes, lemma_idx
     else:
-        merged = merge_pair(spair, sep_token, True)
-        s_indexes = []
-        for word in merged:
-            try:
-                s_indexes.append(word_to_idx[word])
-            except KeyError as e:    
-                s_indexes.append(word_to_idx[unk_token])
-        
-        return Tensor(s_indexes)
+        #s1_indexes.append(lemma_idx)
+        #s2_indexes.append(lemma_idx)
+        s1_indexes = [lemma_idx].append(s1_indexes)
+        s2_indexes = [lemma_idx].append(s2_indexes)
+        return Tensor(s1_indexes),Tensor(s2_indexes)
 
 
-class WordEmbDataset(Dataset):
+class WiCDataset(Dataset):
     """ TODO override __getItem__()
     Class to manage the dataset and to properly load pretrained embeddings 
     (subclass of torch.util.data.Dataset).

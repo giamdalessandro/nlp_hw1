@@ -43,7 +43,6 @@ class EmbAggregation(Module):
         aggregated = self.concat_aggregation(s1_emb,s2_emb)
         return aggregated
 
-
     def dummy_aggreggation(self, sentence_embeddings):
         # TODO: too dummy
         # compute the mean of the embeddings of the two sentences

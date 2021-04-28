@@ -13,10 +13,10 @@ from utils_aggregation import EmbAggregation, embedding_lookUp
 
 def load_saved_model(save_path: str, input_dim: int=200):
     """
-    Loads a saved and pre-trained model, generated with the FooClassifier class.
+    Loads a saved and pre-trained model, generated with the BaseMLPClassifier class.
     """
     print(f"\n[INFO]: loading pre-trained model from '{save_path}'...")
-    model = FooClassifier(input_features=input_dim)
+    model = BaseMLPClassifier(input_features=input_dim)
     model.load_state_dict(load(save_path))
     model.eval()
     print(model.state_dict().keys())
@@ -81,9 +81,9 @@ def train_evaluate(
         # batches of the training set
         for sample in train_dataloader:
             if len(sample) == 3:
-                x = sample[0].to(device)
-                x_len = sample[1].to(device)
-                y = sample[2].to(device)
+                x = sample[0]
+                x_len = sample[1]
+                y = sample[2]
             else:
                 x = sample[0].to(device)
                 y = sample[1].to(device)
@@ -142,7 +142,7 @@ def train_evaluate(
 
 
 ####### WordEmb classifier
-class FooClassifier(Module):
+class BaseMLPClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
@@ -178,60 +178,100 @@ class FooClassifier(Module):
 
 ####### RNN classifier
 def rnn_collate_fn(data_elements: list):  # data_elements is a list of (x, y) pairs
-    X = []
+    """
+    Override the collate function in order to deal with the different sizes of the input 
+    index sequences. (data_elements is a list of ((x1, x2), y) tuples)
+    """
+    X_1 = []
+    X_2 = []
+    x1_lens = []
+    x2_lens = []
     y = []
-    x_lens = []
     for elem in data_elements:
-        X.append(elem[0]) # list of index tensors
+        x1 = elem[0][0]
+        x2 = elem[0][1]
+
+        X_1.append(x1) # list of index tensors
+        X_2.append(x2)
+        x1_lens.append(x1.size(0)) # to implement the many-to-one strategy
+        x2_lens.append(x2.size(0)) # to implement the many-to-one strategy
         y.append(elem[1])
-        x_lens.append(elem[0].size(0)) # to implement the many-to-one strategy
 
-    X = torch.nn.utils.rnn.pad_sequence(X, batch_first=True, padding_value=0)
+    X_1 = torch.nn.utils.rnn.pad_sequence(X_1, batch_first=True, padding_value=0)
+    X_2 = torch.nn.utils.rnn.pad_sequence(X_2, batch_first=True, padding_value=0)
+    x1_lens = torch.LongTensor(x1_lens)
+    x2_lens = torch.LongTensor(x2_lens)
     y = Tensor(y)
-    x_lens = torch.LongTensor(x_lens)
-    return X, x_lens, y
+
+    return (X_1,X_2), (x1_lens,x2_lens), y
 
 
-class FooRecurrentClassifier(Module):
+class RecurrentLSTMClassifier(Module):
     """ TODO
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
     def __init__(self, pretrained_emb, hidden_size: int=64, output_classes: int=1):
         super().__init__()
+        self.global_epoch = 0
 
         # embedding layer
         self.embedding = embedding_lookUp(pretrained_emb)
 
-        # recurrent layers
-        self.rnn = LSTM(input_size=pretrained_emb.shape[1], hidden_size=hidden_size, num_layers=1, batch_first=True)
+        # recurrent layers: one lstm for each sentence of a couple
+        self.rnn1 = LSTM(
+            input_size=pretrained_emb.shape[1], 
+            hidden_size=hidden_size, 
+            num_layers=1, 
+            batch_first=True
+        )
+        self.rnn2 = LSTM(
+            input_size=pretrained_emb.shape[1],
+            hidden_size=hidden_size, 
+            num_layers=1, 
+            batch_first=True
+        )
         
-        # linear layers
-        self.hidden_layer = Linear(hidden_size, hidden_size)
+        # linear layers 
+        self.hidden1_layer = Linear(hidden_size, hidden_size)
+        #self.hidden2_layer = Linear(hidden_size, hidden_size)
         self.output_layer = Linear(hidden_size, output_classes)
         self.loss_fn = BCELoss()
 
-        self.global_epoch = 0
-
     def forward(self, x: Tensor, x_len: Tensor, y: Tensor=None):
         # embedding words from indices
-        embedding_out = self.embedding(x.long())
+        #embedding_out = self.embedding(x.long())
+        emb1_out = self.embedding(x[0].long())
+        emb2_out = self.embedding(x[1].long())
 
-        # recurrent encoding
-        recurrent_out = self.rnn(embedding_out)[0]
-        batch_size, seq_len, hidden_size = recurrent_out.shape
+        # recurrent encoding -> rnn1
+        rnn1_out = self.rnn1(emb1_out)[0]
+        batch_size, seq1_len, hidden_size = rnn1_out.shape
+        flat1_out = rnn1_out.reshape(-1, hidden_size)
 
-        flattened_out = recurrent_out.reshape(-1, hidden_size)
+        lats1_idx = x_len[0] - 1
+        pads_seq1 = torch.arange(batch_size) * seq1_len
+        vec1_idxs = pads_seq1 + lats1_idx
+
+        # recurrent encoding -> rnn2
+        rnn2_out = self.rnn2(emb2_out)[0]
+        seq2_len = rnn2_out.shape[1]
+        flat2_out = rnn2_out.reshape(-1, hidden_size)
         
-        last_word_relative_indices = x_len - 1
-        sequences_offsets = torch.arange(batch_size) * seq_len
-        summary_vectors_indices = sequences_offsets + last_word_relative_indices
-        summary_vectors = flattened_out[summary_vectors_indices]
+        lats2_idx = x_len[1] - 1
+        pads_seq2 = torch.arange(batch_size) * seq2_len
+        vec2_idxs = pads_seq2 + lats2_idx
+        
+        vectors_1 = flat1_out[vec1_idxs]
+        vectors_2 = flat2_out[vec2_idxs]
+        #vec_summary = torch.cat([vectors_1,vectors_2], dim=1).float()
+        vec_summary = torch.sub(vectors_1, vectors_2).float()
 
-        out = self.hidden_layer(summary_vectors)
-        out = relu(out)
-        out = self.output_layer(out).squeeze(1)
+        hidden1 = self.hidden1_layer(vec_summary)
+        #hidden1_out = relu(hidden1)
+        #hidden2 = self.hidden2_layer(hidden1_out)
+        hidden_output = relu(hidden1)
 
-        logits = out
+        logits = self.output_layer(hidden_output).squeeze(1)
         preds = sigmoid(logits)
         result = {'logits': logits, 'probabilities': preds}
 
