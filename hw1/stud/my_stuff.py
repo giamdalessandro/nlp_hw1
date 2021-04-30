@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from utils_classifier import BaseMLPClassifier, RecurrentLSTMClassifier, load_saved_model, \
                              train_evaluate, rnn_collate_fn
-from utils_dataset import WiCDataset, load_pretrained_embedding
+from utils_dataset import WiCDDataset, load_pretrained_embedding
 from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
@@ -22,8 +22,10 @@ SAVE_PATH  = "model/train/"
 
 UNK = "UNK"
 SEP = "SEP"
+PAD = "PAD"
+
 VOCAB_SIZE = 15000
-NUM_EPOCHS = 25
+NUM_EPOCHS = 100
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
@@ -36,7 +38,7 @@ print("Current cuda device ->", torch.cuda.get_device_name(torch.cuda.current_de
 
 if APPROACH == "wordEmb":
     # create Dataset instance to handle training data
-    train_dataset = WiCDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
+    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
 
     #load pre-trained GloVe embeddings
     pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
@@ -46,7 +48,7 @@ if APPROACH == "wordEmb":
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
 
     # create Dataset instance to handle dev data
-    dev_dataset = WiCDataset(DEV_PATH, UNK, SEP, merge=True, word_to_idx=train_dataset.word_to_idx, dev=True)
+    dev_dataset = WiCDDataset(DEV_PATH, UNK, SEP, merge=True, word_to_idx=train_dataset.word_to_idx, dev=True)
     dev_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
     dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE)
 
@@ -68,7 +70,7 @@ if APPROACH == "wordEmb":
 
 elif APPROACH == "rnn":
     # create Dataset instance to handle training data
-    train_dataset = WiCDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
+    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
 
     #load pre-trained GloVe embeddings
     pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
@@ -77,12 +79,12 @@ elif APPROACH == "rnn":
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=rnn_collate_fn)
 
      # create Dataset instance to handle dev data
-    dev_dataset = WiCDataset(DEV_PATH, UNK, SEP, merge=True, word_to_idx=train_dataset.word_to_idx, dev=True)
+    dev_dataset = WiCDDataset(DEV_PATH, UNK, SEP, merge=True, word_to_idx=train_dataset.word_to_idx, dev=True)
     dev_dataset.preprocess_data(unk_token=UNK, sep_token=SEP, rnn=True)
     dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=rnn_collate_fn)
 
     my_model = RecurrentLSTMClassifier(pretrained_emb=pretrained_emb)
-    optimizer = SGD(my_model.parameters(), lr=0.2, momentum=0.001)
+    optimizer = SGD(my_model.parameters(), lr=0.1, momentum=0.001)
 
     print("\n[INFO]: Beginning RNN training ...")
     print(f"[INFO]: {NUM_EPOCHS} epochs on device {DEVICE}.\n")
@@ -92,7 +94,7 @@ elif APPROACH == "rnn":
         valid_dataloader=dev_dataloader,
         optimizer=optimizer,
         epochs=NUM_EPOCHS,
-        early_stopping=False,
+        early_stopping=True,
         rnn=True,
         device="cpu"
     )

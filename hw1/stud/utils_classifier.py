@@ -40,15 +40,18 @@ def evaluate_accuracy(model: Module, dataloader: DataLoader):#
 def evaluate_accuracy_rnn(model: Module, dataloader: DataLoader):#
     y_true = []
     y_pred = []
+    losses = []
     for x, x_len, y in dataloader:
         output = model(x, x_len, y)
         predictions = output['probabilities'].argmax(dim=-1)
+        loss = output["loss"]
+        losses.append(loss)
 
         y_true.extend(y)
         y_pred.extend([round(i) for i in output["probabilities"].detach().numpy()])
         
     final_acc = accuracy_score(y_true, y_pred)
-    return { "accuracy" : final_acc }
+    return { "accuracy" : final_acc, "loss" : np.mean(np.array(losses, dtype=np.float32))}
 
 def train_evaluate(
         model: Module, 
@@ -113,7 +116,8 @@ def train_evaluate(
             valid_output = valid_fn(model, valid_dataloader)
             valid_value = valid_output["accuracy"]
             valid_history.append(valid_value)
-            print(f"\t\tValidation => accuracy: {valid_value:0.6f}\n")
+            valid_loss = valid_output["loss"]
+            print(f"\t\tValidation => loss: {valid_loss:0.6f}, \taccuracy: {valid_value:0.6f}\n")
             if early_stopping:
                 if patience_cnt <= 0:
                     print(f"[INFO]: Early stop! -> patience: {patience_cnt}")
@@ -177,7 +181,7 @@ class BaseMLPClassifier(Module):
 
 
 ####### RNN classifier
-def rnn_collate_fn(data_elements: list):  # data_elements is a list of (x, y) pairs
+def rnn_collate_fn(data_elements: list, pad=15000):  # data_elements is a list of (x, y) pairs
     """
     Override the collate function in order to deal with the different sizes of the input 
     index sequences. (data_elements is a list of ((x1, x2), y) tuples)
@@ -188,6 +192,7 @@ def rnn_collate_fn(data_elements: list):  # data_elements is a list of (x, y) pa
     x2_lens = []
     y = []
     for elem in data_elements:
+        #print(elem[0])
         x1 = elem[0][0]
         x2 = elem[0][1]
 
@@ -197,8 +202,8 @@ def rnn_collate_fn(data_elements: list):  # data_elements is a list of (x, y) pa
         x2_lens.append(x2.size(0)) # to implement the many-to-one strategy
         y.append(elem[1])
 
-    X_1 = torch.nn.utils.rnn.pad_sequence(X_1, batch_first=True, padding_value=0)
-    X_2 = torch.nn.utils.rnn.pad_sequence(X_2, batch_first=True, padding_value=0)
+    X_1 = torch.nn.utils.rnn.pad_sequence(X_1, batch_first=True, padding_value=pad)
+    X_2 = torch.nn.utils.rnn.pad_sequence(X_2, batch_first=True, padding_value=pad)
     x1_lens = torch.LongTensor(x1_lens)
     x2_lens = torch.LongTensor(x2_lens)
     y = Tensor(y)
@@ -210,8 +215,9 @@ class RecurrentLSTMClassifier(Module):
     """ TODO
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
-    def __init__(self, pretrained_emb, hidden_size: int=64, output_classes: int=1):
+    def __init__(self, pretrained_emb, hidden_size: int=64, output_classes: int=1, aggr_type: str="cat"):
         super().__init__()
+        self.aggr_type = aggr_type
         self.global_epoch = 0
 
         # embedding layer
@@ -220,16 +226,16 @@ class RecurrentLSTMClassifier(Module):
         # recurrent layers: one lstm for each sentence of a couple
         self.rnn1 = LSTM(
             input_size=pretrained_emb.shape[1], 
-            hidden_size=hidden_size, 
+            hidden_size=hidden_size//2, 
             num_layers=1, 
             batch_first=True
         )
-        self.rnn2 = LSTM(
-            input_size=pretrained_emb.shape[1],
-            hidden_size=hidden_size, 
-            num_layers=1, 
-            batch_first=True
-        )
+        #self.rnn2 = LSTM(
+        #    input_size=pretrained_emb.shape[1],
+        #    hidden_size=hidden_size, 
+        #    num_layers=1, 
+        #    batch_first=True
+        #)
         
         # linear layers 
         self.hidden1_layer = Linear(hidden_size, hidden_size)
@@ -253,7 +259,7 @@ class RecurrentLSTMClassifier(Module):
         vec1_idxs = pads_seq1 + lats1_idx
 
         # recurrent encoding -> rnn2
-        rnn2_out = self.rnn2(emb2_out)[0]
+        rnn2_out = self.rnn1(emb2_out)[0]
         seq2_len = rnn2_out.shape[1]
         flat2_out = rnn2_out.reshape(-1, hidden_size)
         
@@ -263,8 +269,10 @@ class RecurrentLSTMClassifier(Module):
         
         vectors_1 = flat1_out[vec1_idxs]
         vectors_2 = flat2_out[vec2_idxs]
-        #vec_summary = torch.cat([vectors_1,vectors_2], dim=1).float()
-        vec_summary = torch.sub(vectors_1, vectors_2).float()
+        if self.aggr_type == "cat":
+            vec_summary = torch.cat([vectors_1,vectors_2], dim=1).float()
+        else:
+            vec_summary = torch.sub(vectors_1, vectors_2).float()
 
         hidden1 = self.hidden1_layer(vec_summary)
         #hidden1_out = relu(hidden1)

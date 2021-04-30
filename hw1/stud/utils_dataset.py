@@ -77,12 +77,18 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
             embedding_list.append(word_to_pretrained[word])
 
         except KeyError as e:
-            #if word is not in GloVe, adds a random tensor as its embedding;
-            # it does so also for both unknown and separator tokens
-            token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))  #torch.rand((emb_dim, )) 
-            word_to_embedding[word] = token_emb
-            embedding_list.append(token_emb)
-            #print("missing word:", word)
+            if word == "PAD":
+                # Add a zeros vector as the pad token embedding
+                token_emb = np.zeros(shape=(emb_dim, )) 
+                word_to_embedding[word] = token_emb
+                embedding_list.append(token_emb)
+            else:    
+                # if word is not in GloVe, adds a random tensor as its embedding;
+                # it does so also for both unknown and separator tokens
+                token_emb = np.random.normal(scale=0.6, size=(emb_dim, ))  #torch.rand((emb_dim, )) 
+                word_to_embedding[word] = token_emb
+                embedding_list.append(token_emb)
+                #print("missing word:", word)
             missing += 1
 
     distinct_words = len(word_to_idx)
@@ -92,26 +98,39 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
     print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
     return embedding_mat, emb_dim
 
-def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, stopwords, rnn: bool=False):
+def indexify(
+        spair: dict, 
+        word_to_idx: dict, 
+        unk_token: str, 
+        sep_token: str, 
+        stopwords,
+        stop: bool=False,
+        lemma_first: bool=False,
+        lemma_last: bool=False, 
+        rnn: bool=False
+    ):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
-    - TODO: may consider lemmas and stopwords
-    - TODO: check whether to merge sentences or not!
+        - lemma_first: whether to push the lemma at the beginning of the sentence;
+        - stop: whether to remove the stopwords in 'stopWords' from the sentence;
     """
+    # get lemma vocabulary index
     try:
         lemma_idx = word_to_idx[spair["lemma"]]
     except KeyError as e:    
         lemma_idx = word_to_idx[unk_token]
 
+    # get target words in each sentence of the pair
     target_s1 = spair["sentence1"][int(spair["start1"]):int(spair["end1"])]
     target_s2 = spair["sentence2"][int(spair["start2"]):int(spair["end2"])]
+    
     s1_indexes = []
     for word in spair["sentence1"].strip().split():
         if word == target_s1:
-            word = spair["lemma"]  # lemmatization of target
-            if rnn:
-                continue
-        elif word in stopwords:
+            # lemmatization of target word
+            word = spair["lemma"]  
+        elif word in stopwords and stop:
+            # skip word if it's a stopword  
             continue
         try:
             s1_indexes.append(word_to_idx[word])
@@ -121,29 +140,31 @@ def indexify(spair: dict, word_to_idx: dict, unk_token: str, sep_token: str, sto
     s2_indexes = []
     for word in spair["sentence2"].strip().split():
         if word == target_s2:
-            word = spair["lemma"]  # lemmatization of target
-            if rnn:
-                continue
-        elif word in stopwords:
+            # lemmatization of target word
+            word = spair["lemma"]
+        elif word in stopwords and stop:
+            # skip word if it's a stopwords 
             continue
         try:
             s2_indexes.append(word_to_idx[word])
         except KeyError as e:    
             s2_indexes.append(word_to_idx[unk_token])
     
+    #if lemma_first:
+    #    s1_idx = [lemma_idx]
+    #    s1_indexes.extend(s1_idx)
+    #    s2_idx = [lemma_idx]
+    #    s2_indexes.extend(s2_idx)
+    #elif lemma_last:
+    #    s1_indexes.append(lemma_idx)
+    #    s2_indexes.append(lemma_idx)
     if not rnn:
         return s1_indexes, s2_indexes, lemma_idx
     else:
-        #s1_indexes.append(lemma_idx)
-        #s2_indexes.append(lemma_idx)
-        s1_idx = [lemma_idx]
-        s1_idx.extend(s1_indexes)
-        s2_idx = [lemma_idx]
-        s2_idx.extend(s2_indexes)
-        return Tensor(s1_idx),Tensor(s2_idx)
+        return Tensor(s1_indexes), Tensor(s2_indexes)
 
 
-class WiCDataset(Dataset):
+class WiCDDataset(Dataset):
     """ TODO override __getItem__()
     Class to manage the dataset and to properly load pretrained embeddings 
     (subclass of torch.util.data.Dataset).
@@ -240,10 +261,12 @@ class WiCDataset(Dataset):
         dictionary[unk_token] = size_considered
         if merge:
             dictionary[sep_token] = vocab_size - 1
+            
+        dictionary["PAD"] = vocab_size
         self.word_to_idx = dictionary
 
         # dictionary with (word, frequency) pairs -- including only words that are in the vocabulary
-        dict_counts = {x: counter[x] for x in dictionary if (x is not unk_token and x is not sep_token)}
+        dict_counts = {x: counter[x] for x in dictionary if (x != unk_token and x != sep_token and x != "PAD")}
         self.frequency = dict_counts
         self.tot_occurrences = sum(dict_counts[x] for x in dict_counts)
         print(f"Total occurrences of words in dictionary: {self.tot_occurrences}")
@@ -270,18 +293,17 @@ class WiCDataset(Dataset):
         count = 0
         samples = []
         for spair, label in zip(self.data_json[0],self.data_json[1]):
-            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token, stopWords, rnn)  
+            paragraph = indexify(spair, self.word_to_idx, unk_token, sep_token, stopWords, rnn=rnn)  
             
             # apply aggregation function if working only with embeddings,
             # otherwise just use the indexified sentences 
             aux_emb = emb_to_aggregation(paragraph) if not rnn else paragraph
             aux_label = 1 if label == "True" else 0
             sample = (aux_emb, aux_label)
-            #print(sample)
             samples.append(sample)
             count += 1
 
-        print(f"Loaded {count} samples.")
+        print(f"[INFO]: Loaded {count} samples.")
         self.data_samples = samples
         return
 
