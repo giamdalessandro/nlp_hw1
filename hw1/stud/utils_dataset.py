@@ -14,7 +14,10 @@ from torch import Tensor, LongTensor
 from torch.nn import Embedding, Module
 from torch.utils.data import Dataset, DataLoader
 
-from utils_aggregation import EmbAggregation
+try:
+    from utils_aggregation import EmbAggregation, embedding_lookUp
+except:
+    from stud.utils_aggregation import EmbAggregation, embedding_lookUp
 
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
@@ -104,11 +107,10 @@ def indexify(
         unk_token: str, 
         sep_token: str, 
         stopwords,
-        stop: bool=True,
+        stop: bool=False,
         lemma_first: bool=False,
-        lemma_last: bool=False, 
-        rnn: bool=False,
-        merge: bool=False
+        lemma_last: bool=True, 
+        rnn: bool=False
     ):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
@@ -130,8 +132,8 @@ def indexify(
         if word == target_s1:
             # lemmatization of target word
             word = spair["lemma"]  
-            #if rnn:
-            #    continue
+            if rnn:
+                continue
         elif word in stopwords and stop:
             # skip word if it's a stopword  
             continue
@@ -145,8 +147,8 @@ def indexify(
         if word == target_s2:
             # lemmatization of target word
             word = spair["lemma"]
-            #if rnn:
-            #    continue
+            if rnn:
+                continue
         elif word in stopwords and stop:
             # skip word if it's a stopwords 
             continue
@@ -166,12 +168,12 @@ def indexify(
 
     if not rnn:
         return s1_indexes, s2_indexes, lemma_idx
-    elif merge:
-        s1_indexes.extend(s2_indexes)
-        return s1_indexes
+    #elif merge:
+    #    s1_indexes.extend(s2_indexes)
+    #    return s1_indexes
     else:
         return Tensor(s1_indexes), Tensor(s2_indexes)
-
+    
 
 class WiCDDataset(Dataset):
     """ TODO override __getItem__()

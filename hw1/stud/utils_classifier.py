@@ -8,7 +8,11 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
-from utils_aggregation import EmbAggregation, embedding_lookUp
+
+try:
+    from utils_aggregation import EmbAggregation, embedding_lookUp
+except:
+    from stud.utils_aggregation import EmbAggregation, embedding_lookUp
 
 VERBOSE = False
 
@@ -190,7 +194,7 @@ class BaseMLPClassifier(Module):
 
 
 ####### RNN classifier
-def rnn_collate_fn(data_elements: list, pad=18000):  # data_elements is a list of (x, y) pairs
+def rnn_collate_fn(data_elements: list, pad=18000):
     """
     Override the collate function in order to deal with the different sizes of the input 
     index sequences. (data_elements is a list of ((x1, x2), y) tuples)
@@ -219,15 +223,42 @@ def rnn_collate_fn(data_elements: list, pad=18000):  # data_elements is a list o
 
     return (X_1,X_2), (x1_lens,x2_lens), y
 
+def test_collate_fn(data_elements, pad=18000): # 
+    """
+    A collate function in order to deal with the different sizes of the input 
+    index sequences, when using the model for blind testing (data_elements is
+    a list of ((x1, x2)) tuples).
+    """
+    X_1 = []
+    X_2 = []
+    x1_lens = []
+    x2_lens = []
+    for elem in data_elements:
+        x1 = elem[0]
+        x2 = elem[1]
+
+        X_1.append(x1) # list of index tensors
+        X_2.append(x2)
+        x1_lens.append(x1.size(0)) # to implement the many-to-one strategy
+        x2_lens.append(x2.size(0)) # to implement the many-to-one strategy
+
+    X_1 = torch.nn.utils.rnn.pad_sequence(X_1, batch_first=True, padding_value=pad)
+    X_2 = torch.nn.utils.rnn.pad_sequence(X_2, batch_first=True, padding_value=pad)
+    x1_lens = torch.LongTensor(x1_lens)
+    x2_lens = torch.LongTensor(x2_lens)
+
+    return (X_1,X_2), (x1_lens,x2_lens)
+
 
 class RecurrentLSTMClassifier(Module):
     """ TODO
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
-    def __init__(self, pretrained_emb=None, hidden_size: int=128, output_classes: int=1, aggr_type: str="sub"):
+    def __init__(self, pretrained_emb=None, hidden_size: int=128, output_classes: int=1, aggr_type: str="sub", test=False):
         super().__init__()
         self.aggr_type = "sub"
         self.get_last = False
+        self.test = test
         self.global_epoch = 0
 
         # embedding layer
@@ -257,7 +288,6 @@ class RecurrentLSTMClassifier(Module):
 
     def forward(self, x: Tensor, x_len: Tensor, y: Tensor=None):
         # embedding words from indices
-        #embedding_out = self.embedding(x.long())
         emb1_out = self.embedding(x[0].long())
         emb2_out = self.embedding(x[1].long())
 

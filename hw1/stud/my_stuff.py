@@ -8,7 +8,7 @@ from torch.optim import SGD
 from torch.utils.data import Dataset, DataLoader
 
 from utils_classifier import BaseMLPClassifier, RecurrentLSTMClassifier, load_saved_model, \
-                             train_evaluate, rnn_collate_fn
+                             train_evaluate, rnn_collate_fn, test_collate_fn
 from utils_dataset import WiCDDataset, load_pretrained_embedding, indexify
 from utils_aggregation import EmbAggregation
 
@@ -100,21 +100,45 @@ elif APPROACH == "rnn":
     )
 
 else:
+    import nltk
+    nltk.download('stopwords')
+    from nltk.corpus import stopwords
 
-    spair = {"id": "dev.0", "lemma": "superior", "pos": "NOUN", "sentence1": "No clause in a contract shall be interpreted as evading the responsibility of superiors under international law.", "sentence2": "While fully aware that bishops and major superiors of religious institutes do not act as representatives or delegates of the Roman Pontiff, the Committee notes that subordinates in Catholic religious orders are bound by obedience to the Pope, in accordance with Canons 331 and 590 of the Code of canon Law.", "start1": "78", "end1": "87", "start2": "41", "end2": "50", "label": "False"}
-
+    spair = [
+        {"id": "dev.0", "lemma": "superior", "pos": "NOUN", "sentence1": "No clause in a contract shall be interpreted as evading the responsibility of superiors under international law.", "sentence2": "While fully aware that bishops and major superiors of religious institutes do not act as representatives or delegates of the Roman Pontiff, the Committee notes that subordinates in Catholic religious orders are bound by obedience to the Pope, in accordance with Canons 331 and 590 of the Code of canon Law.", "start1": "78", "end1": "87", "start2": "41", "end2": "50", "label": "False"},{"id": "dev.1", "lemma": "superior", "pos": "NOUN", "sentence1": "No clause in a contract shall be interpreted as evading the responsibility of superiors under international law.", "sentence2": "In Senegal too, the customs officer and his superiors receive a premium in case of detecting and preventing smuggling.", "start1": "78", "end1": "87", "start2": "44", "end2": "53", "label": "True"},
+        {"id": "dev.2", "lemma": "acquaintance", "pos": "NOUN", "sentence1": "Such acquaintance is a right and not an obligation for an accused.", "sentence2": "The complaints tend to be lodged against acquaintances, who may be in the individual’s immediate entourage.", "start1": "5", "end1": "17", "start2": "41", "end2": "54", "label": "False"},
+        {"id": "dev.3", "lemma": "acquaintance", "pos": "NOUN", "sentence1": "Such acquaintance is a right and not an obligation for an accused.", "sentence2": "Sexual violence by non-partners refers to violence by a relative, friend, acquaintance, neighbour, work colleague or stranger.", "start1": "5", "end1": "17", "start2": "74", "end2": "86", "label": "False"},
+        {"id": "dev.4", "lemma": "baggage", "pos": "NOUN", "sentence1": "Where any baggage of any passenger contains firearms or any other prohibited goods these persons are turned over to the police for prosecution.", "sentence2": "In my baggage I had a Hungarian grammar book and dictionaries but the police did not allow me to study Hungarian.", "start1": "10", "end1": "17", "start2": "6", "end2": "13", "label": "True"}
+    ]
     # create Dataset instance to handle training data
     train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
-
     #load pre-trained GloVe embeddings
     pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+
+    data_elements = []
+    stopWords = set(stopwords.words('english'))
+    for i in spair:
+        elem = indexify(
+            spair=i, 
+            word_to_idx=train_dataset.word_to_idx,
+            unk_token=UNK,
+            sep_token=SEP,
+            stopwords=stopWords,
+            rnn=True      
+        )
+        data_elements.append(elem)
+        
 
     my_model = load_saved_model(
         save_path="model/bests/rnn70_50d_nolemma_nostop_sub_1biRNN_local.pt",
         pretrained_emb=pretrained_emb
     )
 
-    model_input = indexify(spair, word_to_idx=train_dataset.word_to_idx)
+    x, xlens = test_collate_fn(data_elements)
+    out = my_model(x, xlens)
+    res = ["True" if i > 0.5 else "False" for i in out["probabilities"]]
+    print("out:", out["probabilities"])
+    print("out:", res)
 
 #print("\n[INFO]: model params ...")
 #for k,v in my_model.state_dict().items():
