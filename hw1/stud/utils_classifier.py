@@ -10,14 +10,22 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 from utils_aggregation import EmbAggregation, embedding_lookUp
 
+VERBOSE = False
 
-def load_saved_model(save_path: str, input_dim: int=200):
+def load_saved_model(save_path: str, mode="rnn", pretrained_emb=None):
     """
-    Loads a saved and pre-trained model, generated with the BaseMLPClassifier class.
+    Loads a saved and pre-trained model, generated with the BaseMLPClassifier 
+    or the RecurrentLSTMClassifier Module.
     """
     print(f"\n[INFO]: loading pre-trained model from '{save_path}'...")
-    model = BaseMLPClassifier(input_features=input_dim)
+    if mode == "rnn": 
+        model = RecurrentLSTMClassifier(pretrained_emb=pretrained_emb)
+    elif mode == "base":
+        model = BaseMLPClassifier()
+
+    # load model weights
     model.load_state_dict(load(save_path))
+    # set model in evaluation mode
     model.eval()
     print(model.state_dict().keys())
     return model
@@ -123,13 +131,14 @@ def train_evaluate(
                     print(f"[INFO]: Early stop! -> patience: {patience_cnt}")
                     break
 
-                if epoch > 0 and valid_history[-1] < valid_history[-2]:
+                if epoch > 20 and valid_history[-1] >= valid_history[-2] and loss_history[-1] <= loss_history[-2]:
+                    patience_cnt += 1
+                    print(f"(patience inc: {patience_cnt})")
+
+                elif epoch > 0 and valid_history[-1] < valid_history[-2]:
                     patience_cnt -= 1
                     print(f"(patience dec: {patience_cnt})")
 
-                elif epoch > 20 and valid_history[-1] >= valid_history[-2] and loss_history[-1] <= loss_history[-2]:
-                    patience_cnt += 1
-                    print(f"(patience inc: {patience_cnt})")
 
     print("\n[INFO]: training summary...")
     print("[INFO]: accuracy scores...")
@@ -150,7 +159,7 @@ class BaseMLPClassifier(Module):
     """ TODO
     This module defines a small MLP classifier
     """
-    def __init__(self, input_features: int, hidden_size: int=100, output_classes: int=1):
+    def __init__(self, input_features: int=50, hidden_size: int=100, output_classes: int=1):
         super().__init__()
         #self.emb_to_aggregation_layer = EmbAggregation(pretrained_emb)
         #self.input_feature = input_features*2 if self.emb_to_aggregation_layer.aggr_type == "concat" else input_features
@@ -181,7 +190,7 @@ class BaseMLPClassifier(Module):
 
 
 ####### RNN classifier
-def rnn_collate_fn(data_elements: list, pad=15000):  # data_elements is a list of (x, y) pairs
+def rnn_collate_fn(data_elements: list, pad=18000):  # data_elements is a list of (x, y) pairs
     """
     Override the collate function in order to deal with the different sizes of the input 
     index sequences. (data_elements is a list of ((x1, x2), y) tuples)
@@ -215,9 +224,10 @@ class RecurrentLSTMClassifier(Module):
     """ TODO
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
-    def __init__(self, pretrained_emb, hidden_size: int=64, output_classes: int=1, aggr_type: str="cat"):
+    def __init__(self, pretrained_emb=None, hidden_size: int=128, output_classes: int=1, aggr_type: str="sub"):
         super().__init__()
-        self.aggr_type = aggr_type
+        self.aggr_type = "sub"
+        self.get_last = False
         self.global_epoch = 0
 
         # embedding layer
@@ -228,19 +238,21 @@ class RecurrentLSTMClassifier(Module):
             input_size=pretrained_emb.shape[1], 
             hidden_size=hidden_size//2, 
             num_layers=1, 
-            batch_first=True
+            batch_first=True,
+            bidirectional=True
         )
         #self.rnn2 = LSTM(
         #    input_size=pretrained_emb.shape[1],
-        #    hidden_size=hidden_size, 
+        #    hidden_size=hidden_size//4, 
         #    num_layers=1, 
-        #    batch_first=True
+        #    batch_first=True,
+        #    bidirectional=True
         #)
         
         # linear layers 
         self.hidden1_layer = Linear(hidden_size, hidden_size)
-        #self.hidden2_layer = Linear(hidden_size, hidden_size)
-        self.output_layer = Linear(hidden_size, output_classes)
+        self.hidden2_layer = Linear(hidden_size, hidden_size//2)
+        self.output_layer = Linear(hidden_size//2, output_classes)
         self.loss_fn = BCELoss()
 
     def forward(self, x: Tensor, x_len: Tensor, y: Tensor=None):
@@ -249,35 +261,79 @@ class RecurrentLSTMClassifier(Module):
         emb1_out = self.embedding(x[0].long())
         emb2_out = self.embedding(x[1].long())
 
-        # recurrent encoding -> rnn1
-        rnn1_out = self.rnn1(emb1_out)[0]
-        batch_size, seq1_len, hidden_size = rnn1_out.shape
-        flat1_out = rnn1_out.reshape(-1, hidden_size)
-
         lats1_idx = x_len[0] - 1
-        pads_seq1 = torch.arange(batch_size) * seq1_len
-        vec1_idxs = pads_seq1 + lats1_idx
-
-        # recurrent encoding -> rnn2
-        rnn2_out = self.rnn1(emb2_out)[0]
-        seq2_len = rnn2_out.shape[1]
-        flat2_out = rnn2_out.reshape(-1, hidden_size)
-        
         lats2_idx = x_len[1] - 1
-        pads_seq2 = torch.arange(batch_size) * seq2_len
-        vec2_idxs = pads_seq2 + lats2_idx
-        
-        vectors_1 = flat1_out[vec1_idxs]
-        vectors_2 = flat2_out[vec2_idxs]
+
+        # recurrent encoding -> rnn1
+        batch_s1 = []
+        batch_s2 = []
+
+        rnn1_out = self.rnn1(emb1_out)[0]
+        rnn2_out = self.rnn1(emb2_out)[0]
+        batch_size, _, hidden_size = rnn1_out.shape
+        for i in range(batch_size):
+            s1_words_rnn = rnn1_out[i][:lats1_idx[i]]
+            s2_words_rnn = rnn2_out[i][:lats2_idx[i]]
+
+            #print("batch elem:", batch_elem.size())
+            s1_words_avg = torch.mean(s1_words_rnn, dim=0)
+            s2_words_avg = torch.mean(s2_words_rnn, dim=0)
+            batch_s1.append(s1_words_avg)
+            batch_s2.append(s2_words_avg)
+
+        avg_s1 = torch.stack(batch_s1)
+        avg_s2 = torch.stack(batch_s2)
+        #print("avg s1 rnn out:", avg_s1.size())
+        #print("avg s2 rnn out:", avg_s2.size())
+        vectors_1 = avg_s1
+        vectors_2 = avg_s2
+
+        if self.get_last:
+            rnn1_out = self.rnn1(emb1_out)[0]
+            batch_size, seq1_len, hidden_size = rnn1_out.shape
+            flat1_out = rnn1_out.reshape(-1, hidden_size)
+
+            pads_seq1 = torch.arange(batch_size) * seq1_len
+            vec1_idxs = pads_seq1 + lats1_idx
+
+            # recurrent encoding -> rnn2
+            rnn2_out = self.rnn1(emb2_out)[0]
+            seq2_len = rnn2_out.shape[1]
+            flat2_out = rnn2_out.reshape(-1, hidden_size)
+            
+            pads_seq2 = torch.arange(batch_size) * seq2_len
+            vec2_idxs = pads_seq2 + lats2_idx
+
+            vectors_1_end = flat1_out[pads_seq1 + 0]
+            vectors_2_end = flat2_out[pads_seq2 + 0]
+            vectors_1 = flat1_out[vec1_idxs]
+            vectors_2 = flat2_out[vec2_idxs]
+
+        if VERBOSE:
+            #print("\npads:", pads_seq1)
+            print("\nlats:", lats1_idx)
+            print("rnn1 out shape:", rnn1_out.size())
+            #print("vec1_idxs:", vec1_idxs.size())
+            #print("Flat out:", flat1_out.size())
+
+
         if self.aggr_type == "cat":
             vec_summary = torch.cat([vectors_1,vectors_2], dim=1).float()
-        else:
-            vec_summary = torch.sub(vectors_1, vectors_2).float()
+        elif self.aggr_type == "sub":
+            vec_summary = torch.abs(torch.sub(vectors_1, vectors_2)).float()
+        elif self.aggr_type == "sqr_sub":
+            s1_sqr = torch.mul(vectors_1,vectors_1)
+            s2_sqr = torch.mul(vectors_2,vectors_2)
+            vec_summary = torch.abs(torch.sub(s1_sqr, s2_sqr)).float()
+
+        if VERBOSE:
+            print("Vec1 shape:", vectors_1.size())
+            print("vecsum shape:", vec_summary.size(), "\n")
 
         hidden1 = self.hidden1_layer(vec_summary)
-        #hidden1_out = relu(hidden1)
-        #hidden2 = self.hidden2_layer(hidden1_out)
-        hidden_output = relu(hidden1)
+        hidden1_out = relu(hidden1)
+        hidden2 = self.hidden2_layer(hidden1_out)
+        hidden_output = relu(hidden2)
 
         logits = self.output_layer(hidden_output).squeeze(1)
         preds = sigmoid(logits)

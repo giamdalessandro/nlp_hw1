@@ -104,10 +104,11 @@ def indexify(
         unk_token: str, 
         sep_token: str, 
         stopwords,
-        stop: bool=False,
+        stop: bool=True,
         lemma_first: bool=False,
         lemma_last: bool=False, 
-        rnn: bool=False
+        rnn: bool=False,
+        merge: bool=False
     ):
     """
     Maps the words of the input sentences pair to the matching vocabulary indexes. 
@@ -129,6 +130,8 @@ def indexify(
         if word == target_s1:
             # lemmatization of target word
             word = spair["lemma"]  
+            #if rnn:
+            #    continue
         elif word in stopwords and stop:
             # skip word if it's a stopword  
             continue
@@ -142,6 +145,8 @@ def indexify(
         if word == target_s2:
             # lemmatization of target word
             word = spair["lemma"]
+            #if rnn:
+            #    continue
         elif word in stopwords and stop:
             # skip word if it's a stopwords 
             continue
@@ -150,16 +155,20 @@ def indexify(
         except KeyError as e:    
             s2_indexes.append(word_to_idx[unk_token])
     
-    #if lemma_first:
-    #    s1_idx = [lemma_idx]
-    #    s1_indexes.extend(s1_idx)
-    #    s2_idx = [lemma_idx]
-    #    s2_indexes.extend(s2_idx)
-    #elif lemma_last:
-    #    s1_indexes.append(lemma_idx)
-    #    s2_indexes.append(lemma_idx)
+    if lemma_first:
+        s1_idx = [lemma_idx]
+        s1_indexes.extend(s1_idx)
+        s2_idx = [lemma_idx]
+        s2_indexes.extend(s2_idx)
+    elif lemma_last:
+        s1_indexes.append(lemma_idx)
+        s2_indexes.append(lemma_idx)
+
     if not rnn:
         return s1_indexes, s2_indexes, lemma_idx
+    elif merge:
+        s1_indexes.extend(s2_indexes)
+        return s1_indexes
     else:
         return Tensor(s1_indexes), Tensor(s2_indexes)
 

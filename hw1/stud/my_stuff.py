@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from utils_classifier import BaseMLPClassifier, RecurrentLSTMClassifier, load_saved_model, \
                              train_evaluate, rnn_collate_fn
-from utils_dataset import WiCDDataset, load_pretrained_embedding
+from utils_dataset import WiCDDataset, load_pretrained_embedding, indexify
 from utils_aggregation import EmbAggregation
 
 ######################### Main test #######################
@@ -24,13 +24,13 @@ UNK = "UNK"
 SEP = "SEP"
 PAD = "PAD"
 
-VOCAB_SIZE = 15000
-NUM_EPOCHS = 100
+VOCAB_SIZE = 18000
+NUM_EPOCHS = 70
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
-APPROACH = "rnn"
-PLOT = True   
+APPROACH = "load"
+PLOT = False   
 print("\n################## my_stuff test code ################")
 
 #torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -84,7 +84,7 @@ elif APPROACH == "rnn":
     dev_dataloader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=rnn_collate_fn)
 
     my_model = RecurrentLSTMClassifier(pretrained_emb=pretrained_emb)
-    optimizer = SGD(my_model.parameters(), lr=0.1, momentum=0.001)
+    optimizer = SGD(my_model.parameters(), lr=0.2, momentum=0.001)
 
     print("\n[INFO]: Beginning RNN training ...")
     print(f"[INFO]: {NUM_EPOCHS} epochs on device {DEVICE}.\n")
@@ -99,8 +99,29 @@ elif APPROACH == "rnn":
         device="cpu"
     )
 
+else:
+
+    spair = {"id": "dev.0", "lemma": "superior", "pos": "NOUN", "sentence1": "No clause in a contract shall be interpreted as evading the responsibility of superiors under international law.", "sentence2": "While fully aware that bishops and major superiors of religious institutes do not act as representatives or delegates of the Roman Pontiff, the Committee notes that subordinates in Catholic religious orders are bound by obedience to the Pope, in accordance with Canons 331 and 590 of the Code of canon Law.", "start1": "78", "end1": "87", "start2": "41", "end2": "50", "label": "False"}
+
+    # create Dataset instance to handle training data
+    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
+
+    #load pre-trained GloVe embeddings
+    pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+
+    my_model = load_saved_model(
+        save_path="model/bests/rnn70_50d_nolemma_nostop_sub_1biRNN_local.pt",
+        pretrained_emb=pretrained_emb
+    )
+
+    model_input = indexify(spair, word_to_idx=train_dataset.word_to_idx)
+
+#print("\n[INFO]: model params ...")
+#for k,v in my_model.state_dict().items():
+#    print(f"\t {k}: {v.size()}")
+
 # save trained model
-torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"rnn{NUM_EPOCHS}_glove50d_lemma_first_sub.pt"))
+torch.save(my_model.state_dict(), os.path.join(SAVE_PATH, f"rnn{NUM_EPOCHS}_glove50d_lemma_abssub_2lstm.pt"))
 
 if PLOT:
     # plot loss and accuracy to inspect the training
@@ -109,7 +130,7 @@ if PLOT:
     axs[0].plot(np.arange(len(history["eval_acc"])), history["eval_acc"], label="val accuracy")
     axs[0].set_xlabel("epoch")
     axs[0].set_ylabel("score")
-    axs[0].set_xticks(np.arange(0,len(history["eval_acc"])+1,10))
+    axs[0].set_xticks(np.arange(0,len(history["eval_acc"])+1,5))
     axs[0].grid()
     axs[0].legend()
     axs[0].set_title("Training history")
@@ -117,7 +138,7 @@ if PLOT:
     axs[1].plot(np.arange(len(history["train_loss"])), history["train_loss"], color="green", label="train loss")
     axs[1].set_xlabel("epoch")
     axs[1].set_ylabel("score")
-    axs[1].set_xticks(np.arange(0,len(history["train_loss"])+1,10))
+    axs[1].set_xticks(np.arange(0,len(history["train_loss"])+1,5))
     axs[1].grid()
     axs[1].legend()
 
