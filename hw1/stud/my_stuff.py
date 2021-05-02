@@ -20,17 +20,17 @@ DEV_PATH   = "data/dev.jsonl"
 TRAIN_PATH = "data/train.jsonl"
 SAVE_PATH  = "model/train/"
 
-UNK = "UNK"
-SEP = "SEP"
-PAD = "PAD"
+UNK = "<UNK>"
+SEP = "<SEP>"
+PAD = "<PAD>"
 
-VOCAB_SIZE = 18000
+VOCAB_SIZE = 20000
 NUM_EPOCHS = 70
 BATCH_SIZE = 32
 
 # APPROACH is set to 'wordEmb' to test the first hw approach, 'rnn' to test the second
-APPROACH = "load"
-PLOT = False   
+APPROACH = "rnn"
+PLOT = True   
 print("\n################## my_stuff test code ################")
 
 #torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -38,10 +38,10 @@ print("Current cuda device ->", torch.cuda.get_device_name(torch.cuda.current_de
 
 if APPROACH == "wordEmb":
     # create Dataset instance to handle training data
-    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
+    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, PAD, vocab_size=VOCAB_SIZE, merge=True)
 
     #load pre-trained GloVe embeddings
-    pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+    pretrained_emb = load_pretrained_embedding(train_dataset.word_to_idx)
     emb_to_aggregation = EmbAggregation(pretrained_emb)
 
     train_dataset.preprocess_data(emb_to_aggregation, unk_token=UNK, sep_token=SEP)
@@ -70,10 +70,10 @@ if APPROACH == "wordEmb":
 
 elif APPROACH == "rnn":
     # create Dataset instance to handle training data
-    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, vocab_size=VOCAB_SIZE, merge=True)
+    train_dataset = WiCDDataset(TRAIN_PATH, UNK, SEP, PAD, vocab_size=VOCAB_SIZE, merge=True)
 
     #load pre-trained GloVe embeddings
-    pretrained_emb, _ = load_pretrained_embedding(train_dataset.word_to_idx)
+    pretrained_emb = load_pretrained_embedding(train_dataset.word_to_idx)
 
     train_dataset.preprocess_data(unk_token=UNK, sep_token=SEP, rnn=True)
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=rnn_collate_fn)

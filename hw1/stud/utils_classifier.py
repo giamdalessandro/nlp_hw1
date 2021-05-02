@@ -7,7 +7,7 @@ from torch.nn import Module, Linear, BCELoss, LSTM, Embedding
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 try:
     from utils_aggregation import EmbAggregation, embedding_lookUp
@@ -133,6 +133,8 @@ def train_evaluate(
             if early_stopping:
                 if patience_cnt <= 0:
                     print(f"[INFO]: Early stop! -> patience: {patience_cnt}")
+                    confusion = confusion_matrix(y_true, y_pred)
+                    print("Conusion matrix:", confusion)
                     break
 
                 if epoch > 20 and valid_history[-1] >= valid_history[-2] and loss_history[-1] <= loss_history[-2]:
@@ -194,7 +196,7 @@ class BaseMLPClassifier(Module):
 
 
 ####### RNN classifier
-def rnn_collate_fn(data_elements: list, pad=18000):
+def rnn_collate_fn(data_elements: list, pad=20000):
     """
     Override the collate function in order to deal with the different sizes of the input 
     index sequences. (data_elements is a list of ((x1, x2), y) tuples)
@@ -223,7 +225,7 @@ def rnn_collate_fn(data_elements: list, pad=18000):
 
     return (X_1,X_2), (x1_lens,x2_lens), y
 
-def test_collate_fn(data_elements, pad=18000): # 
+def test_collate_fn(data_elements, pad=20000): # 
     """
     A collate function in order to deal with the different sizes of the input 
     index sequences, when using the model for blind testing (data_elements is

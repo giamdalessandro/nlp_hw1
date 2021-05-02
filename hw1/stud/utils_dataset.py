@@ -22,6 +22,7 @@ except:
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
 PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
+PAD = "<PAD>"
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool=False):
@@ -80,7 +81,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
             embedding_list.append(word_to_pretrained[word])
 
         except KeyError as e:
-            if word == "PAD":
+            if word == PAD:
                 # Add a zeros vector as the pad token embedding
                 token_emb = np.zeros(shape=(emb_dim, )) 
                 word_to_embedding[word] = token_emb
@@ -99,7 +100,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
 
     embedding_mat = np.array(embedding_list, dtype=np.float64)
     print(f"Total embeddings: ({len(embedding_list)},{emb_dim})")
-    return embedding_mat, emb_dim
+    return embedding_mat #, emb_dim
 
 def indexify(
         spair: dict, 
@@ -107,9 +108,9 @@ def indexify(
         unk_token: str, 
         sep_token: str, 
         stopwords,
-        stop: bool=False,
+        stop: bool=True,
         lemma_first: bool=False,
-        lemma_last: bool=True, 
+        lemma_last: bool=False, 
         rnn: bool=False
     ):
     """
@@ -180,8 +181,16 @@ class WiCDDataset(Dataset):
     Class to manage the dataset and to properly load pretrained embeddings 
     (subclass of torch.util.data.Dataset).
     """
-    def __init__(self, data_path: str, unk_token: str, sep_token: str, merge: bool,
-                    vocab_size: int=10000, word_to_idx: dict=None, dev: bool=False):
+    def __init__(self, 
+        data_path: str, 
+        unk_token: str, 
+        sep_token: str, 
+        pad_token: str,
+        merge: bool,
+        vocab_size: int=10000, 
+        word_to_idx: dict=None, 
+        dev: bool=False
+        ):
         """
         Args:
             - data_path   : Path to the dataset file;
@@ -191,11 +200,12 @@ class WiCDDataset(Dataset):
         """
         self.unk_token   = unk_token
         self.sep_token   = sep_token
+        self.pad_token   = pad_token
         self.word_to_idx = word_to_idx  # passed when creating dev data module
         self.data_json = self.__read_dataset(data_path)  
         if not dev:
             # Build the vocabolary that will be used for training, and initialize some useful data structures
-            self.__build_vocabulary(vocab_size, unk_token, sep_token, merge=merge)
+            self.__build_vocabulary(vocab_size, unk_token, sep_token, pad_token, merge=merge)
 
     def __tokenize_line(self, line: str, pattern='\W'):
         """
@@ -232,7 +242,7 @@ class WiCDDataset(Dataset):
         print("[INFO]: data loaded successfully.")
         return sentence_pairs, labels
 
-    def __build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str, merge: bool):
+    def __build_vocabulary(self, vocab_size: int, unk_token: str, sep_token: str, pad_token: str, merge: bool):
         """ TODO
         Defines the vocabulary to be used. Builds a mapping (word, index) for
         each word in the vocabulary. It adds the following attributes to the class: 
@@ -273,11 +283,11 @@ class WiCDDataset(Dataset):
         if merge:
             dictionary[sep_token] = vocab_size - 1
             
-        dictionary["PAD"] = vocab_size
+        dictionary[pad_token] = vocab_size
         self.word_to_idx = dictionary
 
         # dictionary with (word, frequency) pairs -- including only words that are in the vocabulary
-        dict_counts = {x: counter[x] for x in dictionary if (x != unk_token and x != sep_token and x != "PAD")}
+        dict_counts = {x: counter[x] for x in dictionary if (x != unk_token and x != sep_token and x != pad_token)}
         self.frequency = dict_counts
         self.tot_occurrences = sum(dict_counts[x] for x in dict_counts)
         print(f"Total occurrences of words in dictionary: {self.tot_occurrences}")
@@ -289,7 +299,8 @@ class WiCDDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def preprocess_data(self, emb_to_aggregation: Module=None, unk_token: str="UNK", sep_token: str="SEP", rnn=False):
+    def preprocess_data(self, emb_to_aggregation: Module=None, unk_token: str=self.unk_token, 
+                        sep_token: str=self.sep_token, rnn=False):
         """
         Preprocess the data to create data samples suitable for the classifier. 
         The samples are couples having a sentences pair associated with its 
