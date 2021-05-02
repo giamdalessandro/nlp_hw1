@@ -38,15 +38,17 @@ def load_saved_model(save_path: str, mode="rnn", pretrained_emb=None):
 def evaluate_accuracy(model: Module, dataloader: DataLoader):#
     y_true = []
     y_pred = []
+    losses = []
     for x, y in dataloader:
         output = model(x.cuda(), y.cuda())
         predictions = output['probabilities'].argmax(dim=-1)
+        loss = output["loss"]
 
         y_true.extend(y.cpu())
         y_pred.extend([round(i) for i in output["probabilities"].cpu().detach().numpy()])
         
     final_acc = accuracy_score(y_true, y_pred)
-    return { "accuracy" : final_acc }
+    return { "accuracy" : final_acc, "loss" : np.mean(np.array(losses, dtype=np.float32))}
 
 @torch.no_grad()
 def evaluate_accuracy_rnn(model: Module, dataloader: DataLoader):#
@@ -162,7 +164,7 @@ def train_evaluate(
 
 ####### WordEmb classifier
 class BaseMLPClassifier(Module):
-    """ TODO
+    """ 
     This module defines a small MLP classifier
     """
     def __init__(self, input_features: int=50, hidden_size: int=100, output_classes: int=1):
@@ -253,7 +255,7 @@ def test_collate_fn(data_elements, pad=20000): #
 
 
 class RecurrentLSTMClassifier(Module):
-    """ TODO
+    """ 
     This module defines an RNN embeddings aggregation step followed by a small MLP classifier.
     """
     def __init__(self, pretrained_emb=None, hidden_size: int=128, output_classes: int=1, aggr_type: str="sub", test=False):

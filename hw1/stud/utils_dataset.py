@@ -22,7 +22,6 @@ except:
 PRETRAINED_DIR  = "./model/pretrained_emb/"
 PRETRAINED_EMB  = "glove.6B"
 PRETRAINED_FILE = os.path.join(PRETRAINED_DIR, PRETRAINED_EMB, "glove.6B.50d.txt")
-PAD = "<PAD>"
 
 
 def merge_pair(spair: dict, sep_token: str, separate: bool=False):
@@ -39,7 +38,7 @@ def merge_pair(spair: dict, sep_token: str, separate: bool=False):
 
     return s1
 
-def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
+def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE, pad_token: str="<PAD>"):
     """
     Loads pre-trained word embeddings from 'path' file, and retrieves an 
     embeddings matrix associating each vocabulary word to its corresponding
@@ -81,7 +80,7 @@ def load_pretrained_embedding(word_to_idx: dict, path: str=PRETRAINED_FILE):
             embedding_list.append(word_to_pretrained[word])
 
         except KeyError as e:
-            if word == PAD:
+            if word == pad_token:
                 # Add a zeros vector as the pad token embedding
                 token_emb = np.zeros(shape=(emb_dim, )) 
                 word_to_embedding[word] = token_emb
@@ -299,8 +298,8 @@ class WiCDDataset(Dataset):
         self.id2word = {value: key for key, value in dictionary.items()}
         return
         
-    def preprocess_data(self, emb_to_aggregation: Module=None, unk_token: str=self.unk_token, 
-                        sep_token: str=self.sep_token, rnn=False):
+    def preprocess_data(self, emb_to_aggregation: Module=None, unk_token: str="<UNK>", 
+                        sep_token: str="<SEP>", rnn=False):
         """
         Preprocess the data to create data samples suitable for the classifier. 
         The samples are couples having a sentences pair associated with its 
